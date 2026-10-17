@@ -147,6 +147,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>
 (function () {
@@ -230,7 +231,18 @@
       const p = cmesh(new T.SphereGeometry(0.13, 10, 10), 0x1a1a1a); p.position.set(sx, y, z + 0.22); g.add(p);
     });
   }
+  // Modelos .glb mejorados (Palo y Chad). Se rellena al cargar; hasta entonces, fallback procedural.
+  const glbChar = {};
+  let GLB_FACING = 0; // orientación del modelo importado (se ajusta tras ver el preview)
+  function isHeadName(n) { return /eye|iris|pupil|glint|eyebrow|nose|smile|rounded_top|face|hair|fringe|cap|glass|mouth|neck/i.test(n); }
+  function cloneGlbChar(type) {
+    const g = glbChar[type].clone(true);
+    g.userData.headMeshes = [];
+    g.traverse(o => { if (o.isMesh && isHeadName(o.name)) g.userData.headMeshes.push(o); });
+    return g;
+  }
   function buildCharacter(type) {
+    if (glbChar[type]) return cloneGlbChar(type);
     const g = new T.Group(); g.userData.headMeshes = [];
     const dark = 0x6b4a1f;
     if (type === 'stick') {
@@ -867,6 +879,42 @@
     charList.appendChild(el); charEls[c.id] = el;
   });
   setPreview(selectedChar);
+
+  // ---------- Cargar modelos .glb mejorados (Palo y Chad) ----------
+  function refreshModels() {
+    for (const e of enemies) scene.remove(e);
+    enemies.length = 0; enemyMap.clear();
+    for (let i = 0; i < 8; i++) makeEnemy();
+    if (net.active) enemies.forEach(e => (e.visible = false));
+    setPreview(selectedChar);
+    if (avatar && thirdPerson) setAvatar(selectedChar);
+  }
+  (function loadGlb() {
+    if (typeof THREE.GLTFLoader === 'undefined') { console.warn('GLTFLoader no disponible'); return; }
+    new THREE.GLTFLoader().load('both_characters_lowpoly.glb', function (gltf) {
+      const src = gltf.scene;
+      function build(prefix, exclude) {
+        const raw = new T.Group();
+        src.traverse(o => {
+          if (o.isMesh && o.name.indexOf(prefix) === 0 && !(exclude && exclude.test(o.name))) {
+            const m = o.clone(); m.material = new T.MeshBasicMaterial({ vertexColors: true }); m.name = o.name; raw.add(m);
+          }
+        });
+        raw.rotation.x = -Math.PI / 2; // el modelo viene Z-up -> lo ponemos de pie (Y-up)
+        raw.updateMatrixWorld(true);
+        let box = new T.Box3().setFromObject(raw); const size = box.getSize(new T.Vector3());
+        raw.scale.setScalar(3.0 / (size.y || 1));
+        raw.updateMatrixWorld(true);
+        box = new T.Box3().setFromObject(raw); const c = box.getCenter(new T.Vector3());
+        raw.position.x -= c.x; raw.position.z -= c.z; raw.position.y -= box.min.y;
+        const facing = new T.Group(); facing.rotation.y = GLB_FACING; facing.add(raw);
+        const wrap = new T.Group(); wrap.add(facing); return wrap;
+      }
+      glbChar.stick = build('wood_', /display_base/);
+      glbChar.chad = build('chibi_', null);
+      refreshModels();
+    }, undefined, function (e) { console.warn('No se pudo cargar el .glb:', e); });
+  })();
 
   // ---------- Red (multijugador P2P con PeerJS) ----------
   const net = {
