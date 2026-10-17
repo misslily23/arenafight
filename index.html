@@ -962,9 +962,21 @@
   ] } };
   function setupConn(c) {
     net.conn = c;
+    let opened = false;
+    const onOpen = () => {
+      if (opened) return; opened = true;
+      clearTimeout(net.timeout);
+      if (net.host) { net.send({ t: 'hello', map: selectedMap, ch: selectedChar }); net.pendingMap = selectedMap; showReady(); }
+      else { mpStatus('Conectado ✓ esperando al anfitrión…'); }
+    };
     c.on('data', onData);
-    c.on('open', () => { if (net.host) { net.send({ t: 'hello', map: selectedMap, ch: selectedChar }); net.pendingMap = selectedMap; showReady(); } });
     c.on('close', () => { mpStatus('⚠️ Rival desconectado'); net.active = false; });
+    c.on('error', e => mpStatus('Error de conexión: ' + ((e && e.type) ? e.type : e)));
+    if (c.open) onOpen(); else c.on('open', onOpen);
+    clearTimeout(net.timeout);
+    net.timeout = setTimeout(() => {
+      if (!opened) mpStatus('No se pudo conectar directamente 😕<br/>Probad otra vez, o que uno use datos móviles / otra red.');
+    }, 15000);
   }
   function startHost() {
     if (typeof Peer === 'undefined') { mpStatus('No se pudo cargar la red (sin conexión).'); return; }
