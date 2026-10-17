@@ -953,16 +953,18 @@
   function mpStatus(t) { document.getElementById('mpStatus').innerHTML = t; }
   function randomCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 5; i++) s += a[(Math.random() * a.length) | 0]; return 'af-' + s; }
   // ===== ICE (STUN/TURN) para conectar entre casas/redes distintas =====
-  // 👉 Rellena estos dos con los de tu cuenta GRATIS de Metered (metered.ca):
-  const METERED_APP = '';   // tu subdominio, p.ej. 'arenafight'  ->  arenafight.metered.live
-  const METERED_KEY = '';   // tu API key de Metered
+  // TURN de Metered (cuenta gratis 'buildfight', 500MB/mes). Clave pública de credencial, segura en el front.
+  const METERED_APP = 'buildfight';
+  const METERED_KEY = '4cc5867f2ad478936ab40b1e929a9b2b86bd';
+  const METERED_USER = 'b8aa8efb630cb77dc6a7af2b';
+  const METERED_PASS = 'H3SjgztldFTbSw3I';
   const FALLBACK_ICE = [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    { urls: 'turn:global.relay.metered.ca:80', username: METERED_USER, credential: METERED_PASS },
+    { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: METERED_USER, credential: METERED_PASS },
+    { urls: 'turn:global.relay.metered.ca:443', username: METERED_USER, credential: METERED_PASS },
+    { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: METERED_USER, credential: METERED_PASS }
   ];
   async function getIceServers() {
     if (METERED_APP && METERED_KEY) {
