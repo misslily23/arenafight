@@ -97,8 +97,8 @@
 
 <div id="mpReady">
   <div class="rbox">
-    <h2>¡Conectado!</h2>
-    <p>Pulsa ENTRAR para empezar la partida.</p>
+    <h2>Sala</h2>
+    <p id="mpReadyMsg">Pulsa ENTRAR para entrar a la partida.</p>
     <button id="mpEnter">ENTRAR</button>
   </div>
 </div>
@@ -482,7 +482,7 @@
 
   // ---------- State ----------
   const MAXHP = 100;
-  const player = { pos: new T.Vector3(0, 0, 30), vel: new T.Vector3(), grounded: false, hp: MAXHP, dead: false, respawn: 0 };
+  const player = { pos: new T.Vector3(0, 0, 30), vel: new T.Vector3(), grounded: false, hp: MAXHP, dead: false, respawn: 0, lastAttacker: null, inGame: false };
   let yaw = Math.PI, pitch = 0, recoilPitch = 0;
   const keys = {};
   let running = false, firing = false, nextShot = 0, score = 0, deaths = 0, thirdPerson = false, ads = false;
@@ -505,17 +505,20 @@
   function damagePlayer(d) {
     if (player.dead) return;
     player.hp -= d; flashDamage(); updateHealth();
-    if (player.hp <= 0) { player.hp = 0; player.dead = true; player.respawn = 1.6; if (net.active && net.conn) net.send({ t: 'died' }); }
+    if (player.hp <= 0) {
+      player.hp = 0; player.dead = true; player.respawn = 1.6;
+      if (net.active) { const msg = { t: 'died', from: net.id, by: player.lastAttacker || null }; if (net.host) net.broadcast(msg); else net.toHost(msg); }
+    }
   }
   function respawnPlayer() {
-    player.dead = false; player.hp = MAXHP;
+    player.dead = false; player.hp = MAXHP; player.lastAttacker = null;
     const sx = spawnPoint.x + (Math.random() - 0.5) * 10, sz = spawnPoint.z + (Math.random() - 0.5) * 10;
     player.pos.set(sx, 0, sz); player.vel.set(0, 0, 0); updateHealth();
   }
 
   // ---------- Avatar (3ª persona) ----------
   let avatar = null;
-  function setAvatar(type) { if (avatar) scene.remove(avatar); avatar = buildCharacter(type); avatar.visible = false; scene.add(avatar); }
+  function setAvatar(type) { if (avatar) scene.remove(avatar); avatar = buildCharacter(type); avatar.visible = false; scene.add(avatar); attachWeapon(avatar, curWeapon); }
 
   // ---------- Viewmodel (arma en pantalla) ----------
   const weaponGroup = new T.Group();
@@ -560,6 +563,36 @@
   }
   function place(m, x, y, z, rx, ry, rz) { m.position.set(x, y, z); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); return m; }
 
+  // ---------- Arma en la mano (para 3ª persona y rivales) ----------
+  function buildWorldGun(type) {
+    const g = new T.Group(); const metal = 0x2b3038, dark = 0x16181d, wood = 0x6b4a2a;
+    if (type === 'shotgun') {
+      g.add(place(cmesh(new T.BoxGeometry(0.16, 0.16, 0.95), metal), 0, 0, 0.1));
+      g.add(place(cmesh(new T.CylinderGeometry(0.05, 0.05, 0.5, 8), dark, {}), 0, 0.04, 0.55, Math.PI / 2, 0, 0));
+      g.add(place(cmesh(new T.BoxGeometry(0.13, 0.17, 0.42), wood), 0, -0.03, -0.3));
+    } else if (type === 'sniper') {
+      g.add(place(cmesh(new T.BoxGeometry(0.14, 0.17, 0.75), 0x24402f), 0, 0, 0.05));
+      g.add(place(cmesh(new T.CylinderGeometry(0.04, 0.04, 0.8, 8), dark, {}), 0, 0.01, 0.65, Math.PI / 2, 0, 0));
+      g.add(place(cmesh(new T.CylinderGeometry(0.07, 0.07, 0.32, 8), 0x111, {}), 0, 0.15, 0.1, Math.PI / 2, 0, 0));
+      g.add(place(cmesh(new T.BoxGeometry(0.1, 0.18, 0.36), 0x24402f), 0, -0.05, -0.35));
+    } else {
+      g.add(place(cmesh(new T.BoxGeometry(0.14, 0.19, 0.78), metal), 0, 0, 0.05));
+      g.add(place(cmesh(new T.CylinderGeometry(0.035, 0.035, 0.4, 8), dark, {}), 0, 0.04, 0.6, Math.PI / 2, 0, 0));
+      g.add(place(cmesh(new T.BoxGeometry(0.1, 0.28, 0.13), dark), 0, -0.21, 0.02));
+      g.add(place(cmesh(new T.BoxGeometry(0.11, 0.15, 0.3), metal), 0, 0, -0.32));
+    }
+    return g;
+  }
+  function attachWeapon(charGroup, type) {
+    if (!charGroup) return;
+    let h = charGroup.userData.gunHolder;
+    if (!h) { h = new T.Group(); h.position.set(0.5, 1.3, 0.3); charGroup.add(h); charGroup.userData.gunHolder = h; }
+    if (charGroup.userData.gunType === type) return;
+    charGroup.userData.gunType = type;
+    while (h.children.length) h.remove(h.children[0]);
+    h.add(buildWorldGun(type));
+  }
+
   function setWeapon(type) {
     curWeapon = type; reloading = false;
     if (gunModel) weaponGroup.remove(gunModel);
@@ -567,6 +600,7 @@
     weaponGroup.position.z = gunBaseZ;
     document.getElementById('wname').textContent = WEAPONS[type].name;
     for (const k in slots) slots[k].classList.toggle('active', TOOLKEY[k] === type);
+    if (avatar) attachWeapon(avatar, type);
     updateAmmo();
   }
 
@@ -652,16 +686,17 @@
       if (w.spread) { dir.x += (Math.random() - 0.5) * w.spread; dir.y += (Math.random() - 0.5) * w.spread; dir.z += (Math.random() - 0.5) * w.spread; dir.normalize(); }
       raycaster.set(origin, dir);
       const targets = worldSolids.slice();
-      if (net.active) { if (remote.group) for (const m of remote.meshes) targets.push(m); }
+      if (net.active) { for (const id in remotes) for (const m of remotes[id].meshes) targets.push(m); }
       else for (const e of enemies) for (const m of e.userData.meshes) targets.push(m);
       const hits = raycaster.intersectObjects(targets, false);
       let end = origin.clone().add(dir.clone().multiplyScalar(300));
       if (hits.length) {
         const h = hits[0]; end = h.point.clone();
         if (net.active) {
-          if (remote.group && remote.meshSet.has(h.object)) {
-            const isHead = remote.headSet.has(h.object);
-            net.send({ t: 'hit', d: w.dmg * (isHead ? 2.3 : 1) }); showHitmarker();
+          const vid = remoteMeshMap.get(h.object);
+          if (vid != null && remotes[vid]) {
+            const isHead = remotes[vid].headSet.has(h.object);
+            sendHit(vid, w.dmg * (isHead ? 2.3 : 1)); showHitmarker();
           }
         } else {
           const e = enemyMap.get(h.object);
@@ -671,7 +706,10 @@
       tracer(origin.clone().add(baseDir.clone().multiplyScalar(1.0)).add(new T.Vector3(0, -0.12, 0)), end);
     }
     recoilPitch += w.kick; // retroceso de cámara
-    if (net.active && net.conn) net.send({ t: 'shot', ox: origin.x, oy: origin.y, oz: origin.z, ex: baseDir.x, ey: baseDir.y, ez: baseDir.z });
+    if (net.active) {
+      const shot = { t: 'shot', from: net.id, ox: origin.x, oy: origin.y, oz: origin.z, ex: baseDir.x, ey: baseDir.y, ez: baseDir.z };
+      if (net.host) net.broadcast(shot); else net.toHost(shot);
+    }
     if (st.mag <= 0) reload();
   }
   function showHitmarker() {
@@ -784,19 +822,22 @@
     // disparo automático
     if (firing && WEAPONS[curWeapon].auto && !player.dead) { nextShot -= dt; if (nextShot <= 0) { fire(); nextShot = WEAPONS[curWeapon].rate; } }
 
-    // red: enviar estado e interpolar al rival
-    if (net.active && net.conn) {
+    // red: enviar mi estado e interpolar a todos los rivales
+    if (net.active) {
       net.sendT -= dt;
       if (net.sendT <= 0) {
         net.sendT = 0.05;
-        net.send({ t: 's', x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: yaw, pitch: pitch, hp: player.hp, w: curWeapon });
+        const st = { t: 's', x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: yaw, hp: player.hp, w: curWeapon, ch: selectedChar, dd: player.dead };
+        if (net.host) { st.from = 'host'; net.broadcast(st); } else net.toHost(st);
       }
-    }
-    if (remote.group) {
-      remote.group.position.lerp(remote.target, Math.min(1, dt * 14));
-      remote.group.rotation.y += ((remote.yaw + Math.PI) - remote.group.rotation.y) * Math.min(1, dt * 14);
-      remote.group.visible = !remote.dead;
-      if (remote.bar) { remote.bar.lookAt(camera.position); remote.barFill.scale.x = Math.max(0.01, remote.hp / MAXHP); }
+      for (const id in remotes) {
+        const r = remotes[id];
+        r.group.position.lerp(r.target, Math.min(1, dt * 14));
+        r.group.rotation.y += ((r.yaw + Math.PI) - r.group.rotation.y) * Math.min(1, dt * 14);
+        r.group.visible = !r.dead;
+        attachWeapon(r.group, r.w);
+        if (r.bar) { r.bar.lookAt(camera.position); r.barFill.scale.x = Math.max(0.01, r.hp / MAXHP); }
+      }
     }
 
     // enemigos (bots): sólo en modo offline
@@ -916,39 +957,74 @@
     }, undefined, function (e) { console.warn('No se pudo cargar el .glb:', e); });
   })();
 
-  // ---------- Red (multijugador P2P con PeerJS) ----------
+  // ---------- Red (multijugador P2P, topología en estrella) ----------
+  // El anfitrión es el 'hub': cada invitado se conecta a él y el host reenvía el estado a los demás.
   const net = {
-    active: false, host: false, peer: null, conn: null, sendT: 0, pendingMap: null,
-    send(obj) { try { if (this.conn && this.conn.open) this.conn.send(obj); } catch (e) {} }
+    active: false, host: false, id: null, peer: null, conns: {}, sendT: 0, timeout: null,
+    sendTo(id, obj) { try { const c = this.conns[id]; if (c && c.open) c.send(obj); } catch (e) {} },
+    broadcast(obj, except) { for (const id in this.conns) { if (id === except) continue; try { const c = this.conns[id]; if (c && c.open) c.send(obj); } catch (e) {} } },
+    toHost(obj) { for (const id in this.conns) { try { const c = this.conns[id]; if (c && c.open) c.send(obj); } catch (e) {} } }
   };
-  const remote = { group: null, meshes: [], meshSet: new Set(), headSet: new Set(), target: new T.Vector3(), yaw: 0, hp: MAXHP, dead: false, char: 'troll', bar: null, barFill: null };
+  const remotes = {};              // id -> jugador rival
+  const remoteMeshMap = new Map(); // mesh -> id
 
-  function makeRemote(charId) {
-    if (remote.group) scene.remove(remote.group);
-    const g = buildCharacter(charId);
-    remote.meshes = []; remote.meshSet = new Set(); remote.headSet = new Set();
-    const hs = new Set(g.userData.headMeshes);
-    g.traverse(o => { if (o.isMesh) { remote.meshes.push(o); remote.meshSet.add(o); if (hs.has(o)) remote.headSet.add(o); } });
+  function makeRemotePlayer(id, charId) {
+    if (remotes[id]) removeRemotePlayer(id);
+    const g = buildCharacter(charId || 'troll');
+    const meshes = [], meshSet = new Set(), headSet = new Set(), hs = new Set(g.userData.headMeshes);
+    g.traverse(o => { if (o.isMesh) { meshes.push(o); meshSet.add(o); remoteMeshMap.set(o, id); if (hs.has(o)) headSet.add(o); } });
     const bar = new T.Group();
     bar.add(new T.Mesh(new T.PlaneGeometry(2, 0.26), new T.MeshBasicMaterial({ color: 0x3a1414 })));
     const fgGeo = new T.PlaneGeometry(2, 0.26); fgGeo.translate(1, 0, 0);
     const fg = new T.Mesh(fgGeo, new T.MeshBasicMaterial({ color: 0x49d06a })); fg.position.set(-1, 0, 0.01); bar.add(fg);
     bar.position.y = 3.7; g.add(bar);
-    remote.bar = bar; remote.barFill = fg;
-    remote.group = g; remote.char = charId; remote.hp = MAXHP; remote.dead = false;
     scene.add(g);
+    const r = { group: g, meshes, meshSet, headSet, target: new T.Vector3(), yaw: 0, hp: MAXHP, dead: false, char: charId, w: 'rifle', bar: bar, barFill: fg };
+    remotes[id] = r; return r;
   }
-  function onData(d) {
-    if (d.t === 'hello') {
-      if (d.map) net.pendingMap = d.map;
-      makeRemote(d.ch || 'troll');
-      if (!net.host) { net.send({ t: 'hello', ch: selectedChar }); showReady(); }
+  function removeRemotePlayer(id) {
+    const r = remotes[id]; if (!r) return;
+    for (const m of r.meshes) remoteMeshMap.delete(m);
+    scene.remove(r.group); delete remotes[id];
+  }
+  function clearRemotes() { for (const id in remotes) removeRemotePlayer(id); }
+
+  function onData(conn, d) {
+    const sender = conn._afid;
+    if (d.t === 'welcome') {
+      net.id = d.you;
+      if (d.map && currentMap !== d.map) { buildMap(d.map); player.pos.copy(spawnPoint); player.vel.set(0, 0, 0); }
     } else if (d.t === 's') {
-      if (!remote.group) makeRemote(remote.char);
-      remote.target.set(d.x, d.y, d.z); remote.yaw = d.yaw; remote.hp = d.hp;
-    } else if (d.t === 'hit') { damagePlayer(d.d); }
-    else if (d.t === 'shot') { tracer(new T.Vector3(d.ox, d.oy, d.oz), new T.Vector3(d.ox + d.ex * 200, d.oy + d.ey * 200, d.oz + d.ez * 200)); }
-    else if (d.t === 'died') { remote.dead = true; score++; document.getElementById('score').textContent = score; setTimeout(() => { remote.dead = false; }, 1600); }
+      const fromId = net.host ? sender : d.from;
+      if (fromId == null || fromId === net.id) return;
+      const r = remotes[fromId] || makeRemotePlayer(fromId, d.ch);
+      r.target.set(d.x, d.y, d.z); r.yaw = d.yaw; r.hp = d.hp; r.w = d.w || 'rifle'; r.dead = !!d.dd;
+      if (net.host) { d.from = sender; net.broadcast(d, sender); }
+    } else if (d.t === 'hit') {
+      if (d.target === net.id) { player.lastAttacker = d.from; damagePlayer(d.d); }
+      else if (net.host) { net.sendTo(d.target, d); }
+    } else if (d.t === 'shot') {
+      tracer(new T.Vector3(d.ox, d.oy, d.oz), new T.Vector3(d.ox + d.ex * 200, d.oy + d.ey * 200, d.oz + d.ez * 200));
+      if (net.host) { d.from = sender; net.broadcast(d, sender); }
+    } else if (d.t === 'died') {
+      const fromId = net.host ? sender : d.from;
+      if (d.by === net.id) { score++; document.getElementById('score').textContent = score; }
+      if (remotes[fromId]) { remotes[fromId].dead = true; setTimeout(() => { if (remotes[fromId]) remotes[fromId].dead = false; }, 1600); }
+      if (net.host) { d.from = sender; net.broadcast(d, sender); }
+    } else if (d.t === 'leave') { removeRemotePlayer(d.id); }
+  }
+  function sendHit(vid, dmg) {
+    const msg = { t: 'hit', from: net.id, target: vid, d: dmg };
+    if (net.host) net.sendTo(vid, msg); else net.toHost(msg);
+  }
+  function attachConnHandlers(c) {
+    c.on('data', d => onData(c, d));
+    c.on('close', () => {
+      const id = c._afid;
+      if (net.host) { delete net.conns[id]; removeRemotePlayer(id); net.broadcast({ t: 'leave', id: id }); }
+      else { mpStatus('⚠️ Anfitrión desconectado. Vuelve a unirte.'); net.active = false; }
+    });
+    c.on('error', () => {});
   }
   function mpStatus(t) { document.getElementById('mpStatus').innerHTML = t; }
   function randomCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 5; i++) s += a[(Math.random() * a.length) | 0]; return 'af-' + s; }
@@ -975,51 +1051,49 @@
     }
     return FALLBACK_ICE;
   }
-  function setupConn(c) {
-    net.conn = c;
-    let opened = false;
-    const onOpen = () => {
-      if (opened) return; opened = true;
-      clearTimeout(net.timeout);
-      if (net.host) { net.send({ t: 'hello', map: selectedMap, ch: selectedChar }); net.pendingMap = selectedMap; showReady(); }
-      else { mpStatus('Conectado ✓ esperando al anfitrión…'); }
-    };
-    c.on('data', onData);
-    c.on('close', () => { mpStatus('⚠️ Rival desconectado'); net.active = false; });
-    c.on('error', e => mpStatus('Error de conexión: ' + ((e && e.type) ? e.type : e)));
-    if (c.open) onOpen(); else c.on('open', onOpen);
-    clearTimeout(net.timeout);
-    net.timeout = setTimeout(() => {
-      if (!opened) mpStatus('No se pudo conectar directamente 😕<br/>Probad otra vez, o que uno use datos móviles / otra red.');
-    }, 15000);
-  }
+  // Anfitrión: crea la sala y se mantiene abierta aceptando a quien se una (ahora y más tarde).
   async function startHost() {
     if (typeof Peer === 'undefined') { mpStatus('No se pudo cargar la red (sin conexión).'); return; }
-    net.host = true; mpStatus('Preparando servidores…');
+    net.host = true; net.id = 'host'; mpStatus('Preparando servidores…');
     const ice = await getIceServers();
     net.peer = new Peer(randomCode(), { config: { iceServers: ice } });
-    net.peer.on('open', id => mpStatus('Tu código: <b style="color:#ffb13b;font-size:20px">' + id.replace('af-', '') + '</b><br/>Dáselo a tu amigo y espera…'));
-    net.peer.on('connection', c => { mpStatus('¡Amigo conectado! Preparando…'); setupConn(c); });
+    net.peer.on('open', id => {
+      const code = id.replace('af-', '');
+      document.getElementById('mpReadyMsg').innerHTML = 'Sala creada. Código: <b style="color:#ffb13b;font-size:20px">' + code + '</b><br/>Pulsa ENTRAR. Tus amigos pueden unirse cuando quieran (y volver a entrar si se salen).';
+      document.getElementById('mpReady').style.display = 'flex';
+      mpStatus('Código: <b style="color:#ffb13b;font-size:20px">' + code + '</b> — compártelo.');
+    });
+    net.peer.on('connection', c => {
+      c._afid = c.peer; net.conns[c.peer] = c; attachConnHandlers(c);
+      const welcome = () => c.send({ t: 'welcome', you: c.peer, map: currentMap });
+      if (c.open) welcome(); else c.on('open', welcome);
+    });
     net.peer.on('error', e => mpStatus('Error de red: ' + e.type));
   }
+  // Invitado: entra al juego YA (gesto del clic -> captura ratón) y conecta en segundo plano.
   async function startJoin(codeRaw) {
     if (typeof Peer === 'undefined') { mpStatus('No se pudo cargar la red (sin conexión).'); return; }
-    if (!codeRaw.trim()) { mpStatus('Escribe el código de tu amigo.'); return; }
-    net.host = false; mpStatus('Preparando…');
+    if (!codeRaw.trim()) { mpStatus('Escribe el código de la sala.'); return; }
+    net.host = false; net.active = true; player.inGame = true;
+    startPlay(selectedMap);
     const ice = await getIceServers();
     net.peer = new Peer({ config: { iceServers: ice } });
-    net.peer.on('open', () => { mpStatus('Conectando…'); setupConn(net.peer.connect('af-' + codeRaw.trim().toUpperCase())); });
-    net.peer.on('error', e => mpStatus('Error: ' + e.type + ' (¿código correcto?)'));
+    net.peer.on('open', () => {
+      net.id = net.peer.id;
+      const c = net.peer.connect('af-' + codeRaw.trim().toUpperCase(), { reliable: true });
+      c._afid = 'host'; net.conns['host'] = c; attachConnHandlers(c);
+    });
+    net.peer.on('error', e => { /* el juego sigue; reintento al reconectar */ });
   }
-  function showReady() { document.getElementById('mpReady').style.display = 'flex'; }
 
   // ---------- Iniciar partida ----------
   function startPlay(mapKind) {
     if (currentMap !== mapKind) buildMap(mapKind);
+    clearRemotes();
     enemies.forEach(e => { e.visible = !net.active; });
     if (!net.active) enemies.forEach(respawnEnemy);
     score = 0; deaths = 0; document.getElementById('score').textContent = 0;
-    player.hp = MAXHP; player.dead = false; updateHealth();
+    player.hp = MAXHP; player.dead = false; player.lastAttacker = null; updateHealth();
     player.pos.copy(spawnPoint); player.vel.set(0, 0, 0);
     setAvatar(selectedChar); setWeapon('rifle');
     try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
@@ -1033,11 +1107,23 @@
     selectedMap = b.dataset.map;
     document.querySelectorAll('.mapbtn').forEach(o => o.classList.toggle('active', o === b));
   }));
-  document.getElementById('playBtn').addEventListener('click', () => { net.active = false; startPlay(selectedMap); });
+  document.getElementById('playBtn').addEventListener('click', () => { net.active = false; player.inGame = false; startPlay(selectedMap); });
   document.getElementById('mpHost').addEventListener('click', startHost);
   document.getElementById('mpJoin').addEventListener('click', () => startJoin(document.getElementById('mpCode').value));
-  document.getElementById('mpEnter').addEventListener('click', () => { net.active = true; startPlay(net.pendingMap || selectedMap); });
-  document.addEventListener('pointerlockchange', () => { running = document.pointerLockElement === canvas; menu.style.display = running ? 'none' : 'flex'; if (!running) { firing = false; ads = false; } });
+  document.getElementById('mpEnter').addEventListener('click', () => {
+    document.getElementById('mpReady').style.display = 'none';
+    if (net.active && player.inGame) { canvas.requestPointerLock(); }   // reanudar
+    else { net.active = true; player.inGame = true; startPlay(selectedMap); } // host entra
+  });
+  document.addEventListener('pointerlockchange', () => {
+    running = document.pointerLockElement === canvas;
+    if (running) { menu.style.display = 'none'; document.getElementById('mpReady').style.display = 'none'; }
+    else {
+      firing = false; ads = false;
+      if (net.active && player.inGame) { document.getElementById('mpReadyMsg').textContent = 'Pausa. Pulsa ENTRAR para seguir.'; document.getElementById('mpReady').style.display = 'flex'; }
+      else menu.style.display = 'flex';
+    }
+  });
   document.addEventListener('mousemove', (e) => {
     if (!running) return; const s = ads && curWeapon === 'sniper' ? 0.0009 : 0.0022;
     yaw -= e.movementX * s; pitch -= e.movementY * s;
