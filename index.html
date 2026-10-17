@@ -952,14 +952,27 @@
   }
   function mpStatus(t) { document.getElementById('mpStatus').innerHTML = t; }
   function randomCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 5; i++) s += a[(Math.random() * a.length) | 0]; return 'af-' + s; }
-  // STUN + TURN gratis (para conectar entre redes/casas distintas aunque haya router/NAT)
-  const PEER_OPTS = { config: { iceServers: [
+  // ===== ICE (STUN/TURN) para conectar entre casas/redes distintas =====
+  // 👉 Rellena estos dos con los de tu cuenta GRATIS de Metered (metered.ca):
+  const METERED_APP = '';   // tu subdominio, p.ej. 'arenafight'  ->  arenafight.metered.live
+  const METERED_KEY = '';   // tu API key de Metered
+  const FALLBACK_ICE = [
     { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:global.stun.twilio.com:3478' },
     { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
     { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
     { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-  ] } };
+  ];
+  async function getIceServers() {
+    if (METERED_APP && METERED_KEY) {
+      try {
+        const r = await fetch('https://' + METERED_APP + '.metered.live/api/v1/turn/credentials?apiKey=' + METERED_KEY);
+        if (r.ok) { const ice = await r.json(); if (Array.isArray(ice) && ice.length) return ice; }
+      } catch (e) { console.warn('TURN Metered no disponible, usando fallback', e); }
+    }
+    return FALLBACK_ICE;
+  }
   function setupConn(c) {
     net.conn = c;
     let opened = false;
@@ -978,19 +991,21 @@
       if (!opened) mpStatus('No se pudo conectar directamente 😕<br/>Probad otra vez, o que uno use datos móviles / otra red.');
     }, 15000);
   }
-  function startHost() {
+  async function startHost() {
     if (typeof Peer === 'undefined') { mpStatus('No se pudo cargar la red (sin conexión).'); return; }
-    net.host = true;
-    net.peer = new Peer(randomCode(), PEER_OPTS);
+    net.host = true; mpStatus('Preparando servidores…');
+    const ice = await getIceServers();
+    net.peer = new Peer(randomCode(), { config: { iceServers: ice } });
     net.peer.on('open', id => mpStatus('Tu código: <b style="color:#ffb13b;font-size:20px">' + id.replace('af-', '') + '</b><br/>Dáselo a tu amigo y espera…'));
     net.peer.on('connection', c => { mpStatus('¡Amigo conectado! Preparando…'); setupConn(c); });
     net.peer.on('error', e => mpStatus('Error de red: ' + e.type));
   }
-  function startJoin(codeRaw) {
+  async function startJoin(codeRaw) {
     if (typeof Peer === 'undefined') { mpStatus('No se pudo cargar la red (sin conexión).'); return; }
     if (!codeRaw.trim()) { mpStatus('Escribe el código de tu amigo.'); return; }
-    net.host = false;
-    net.peer = new Peer(PEER_OPTS);
+    net.host = false; mpStatus('Preparando…');
+    const ice = await getIceServers();
+    net.peer = new Peer({ config: { iceServers: ice } });
     net.peer.on('open', () => { mpStatus('Conectando…'); setupConn(net.peer.connect('af-' + codeRaw.trim().toUpperCase())); });
     net.peer.on('error', e => mpStatus('Error: ' + e.type + ' (¿código correcto?)'));
   }
