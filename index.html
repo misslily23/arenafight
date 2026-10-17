@@ -180,6 +180,7 @@
   const camera = new T.PerspectiveCamera(BASE_FOV, innerWidth / innerHeight, 0.05, 1000);
   camera.rotation.order = 'YXZ';
   scene.add(camera); // para que el viewmodel (hijo de la cámara) se renderice
+  window.__view = (x, y, z, tx, ty, tz) => { camera.position.set(x, y, z); camera.lookAt(tx || 0, ty || 2, tz || 0); camera.updateProjectionMatrix(); renderer.render(scene, camera); };
 
   scene.add(new T.HemisphereLight(0xcfe0ff, 0x24334d, 1.0));
   const sun = new T.DirectionalLight(0xffffff, 0.9);
@@ -363,16 +364,47 @@
     const m = new T.Mesh(new T.BoxGeometry(w, h, d), new T.MeshLambertMaterial({ map: tex }));
     m.position.set(x, y + h / 2, z); mapGroup.add(m); solids.push(m); return m;
   }
+  // Edificio HUECO: se puede entrar por la puerta y disparar por las ventanas (huecos reales)
+  // doorSide: 'N'(-z) 'S'(+z) 'E'(+x) 'W'(-x)
+  function hollowBuilding(x, z, w, d, h, color, roofColor, doorSide) {
+    const t = 0.4, sill = 1.25, winTop = 2.35, doorW = 1.9;
+    // pared que corre en X (en z = zc); hasDoor = puerta en el centro
+    function wallX(zc, hasDoor) {
+      if (hasDoor) {
+        const seg = (w - doorW) / 2;
+        addBox(x - (doorW / 2 + seg / 2), 0, zc, seg, h, t, color);
+        addBox(x + (doorW / 2 + seg / 2), 0, zc, seg, h, t, color);
+        addBox(x, h - 0.6, zc, doorW, 0.6, t, color); // dintel (hueco puerta debajo)
+      } else {
+        addBox(x, 0, zc, w, sill, t, color);               // alféizar (disparas por encima)
+        addBox(x, winTop, zc, w, h - winTop, t, color);    // parte alta
+        addBox(x, sill, zc, 0.3, winTop - sill, t, color); // montante central de la ventana
+      }
+    }
+    // pared que corre en Z (en x = xc)
+    function wallZ(xc, hasDoor) {
+      if (hasDoor) {
+        const seg = (d - doorW) / 2;
+        addBox(xc, 0, z - (doorW / 2 + seg / 2), t, h, seg, color);
+        addBox(xc, 0, z + (doorW / 2 + seg / 2), t, h, seg, color);
+        addBox(xc, h - 0.6, z, t, 0.6, doorW, color);
+      } else {
+        addBox(xc, 0, z, t, sill, d, color);
+        addBox(xc, winTop, z, t, h - winTop, d, color);
+        addBox(xc, sill, z, t, winTop - sill, 0.3, color);
+      }
+    }
+    wallX(z - d / 2, doorSide === 'N');
+    wallX(z + d / 2, doorSide === 'S');
+    wallZ(x - w / 2, doorSide === 'W');
+    wallZ(x + w / 2, doorSide === 'E');
+    addBox(x, h, z, w + 0.3, 0.35, d + 0.3, roofColor || color); // techo sólido (pisable)
+  }
   function house(x, z, w, h, d) {
-    addBox(x, 0, z, w, h, d, 0x8d96a1);
-    deco(x, h, z, w + 0.5, 0.5, d + 0.5, 0x9a7b4f);
-    deco(x, h + 0.5, z, w - 1.2, 0.25, d - 1.2, 0x86693f);
+    hollowBuilding(x, z, w, d, h, 0x9199a3, 0x9a7b4f, ['N', 'S', 'E', 'W'][(Math.random() * 4) | 0]);
   }
   function redHouse(x, z, w, h, d) {
-    addBox(x, 0, z, w, h, d, 0xb0594a);
-    deco(x, h - 0.1, z, w + 0.4, 0.6, d + 0.4, 0xeae4d6);
-    deco(x, h * 0.45, z + d / 2 + 0.03, w * 0.35, h * 0.3, 0.12, 0x3a2b26);
-    deco(x + w / 2 + 0.03, h * 0.45, z, 0.12, h * 0.3, d * 0.35, 0x3a2b26);
+    hollowBuilding(x, z, w, d, h, 0xb0594a, 0xeae4d6, ['N', 'S', 'E', 'W'][(Math.random() * 4) | 0]);
   }
   function tower(x, z, h) {
     addBox(x, 0, z, 3.4, h, 3.4, 0xeae4d6);
