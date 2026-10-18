@@ -332,7 +332,7 @@
     const m = cmesh(new T.CylinderGeometry(r, r, h, 8), color);
     const p = new T.Group(); p.position.set(x, y + h / 2, z); m.position.set(0, -h / 2, 0); p.add(m); g.add(p); // pivote arriba (hombro/cadera)
     (g.userData.limbs || (g.userData.limbs = [])).push({ p, leg: y < 1.0, side: x >= 0 ? 1 : -1 });
-    p.userData.len = h; return p; // se devuelve el pivote: girarlo abre el brazo desde el hombro
+    p.userData.len = h; p.userData.hand = { x: 0, y: -h, z: 0 }; return p; // se devuelve el pivote: girarlo abre el brazo desde el hombro
   }
   function eyeSet(g, y, z) {
     [-0.34, 0.34].forEach(sx => {
@@ -2032,7 +2032,7 @@
   const pl = new T.DirectionalLight(0xffffff, 0.8); pl.position.set(3, 6, 5); pScene.add(pl);
   const pCam = new T.PerspectiveCamera(42, 230 / 270, 0.1, 100); pCam.position.set(0, 2.0, 7.2); pCam.lookAt(0, 1.7, 0);
   let pChar = null;
-  function setPreview(type) { if (pChar) pScene.remove(pChar); pChar = buildCharacter(type); pScene.add(pChar); }
+  function setPreview(type) { if (pChar) pScene.remove(pChar); pChar = buildCharacter(type); attachWeapon(pChar, 'rifle'); pScene.add(pChar); } // en el menú también lleva el arma
   window.__pv = () => pChar;
 
   // ---------- Animación de andar ----------
@@ -2056,7 +2056,12 @@
       L.p.rotation.x = rl ? (right ? -0.95 : -0.7 - 0.35 * rk) : aimX + ph * 0.05 * amt;
       if (L.glb) { L.p.rotation.y = inward; } else L.p.rotation.z = inward;
     }
-    if (ud.gunHolder) { ud.gunHolder.rotation.x = rl ? 0.5 : 0; ud.gunHolder.position.y = (rl ? 1.28 : 1.5) / (g.scale.x || 1); }
+    if (ud.gunHolder) { // el arma va en la mano: se busca la mano del brazo derecho ya posado
+      ud.gunHolder.rotation.x = rl ? 0.5 : 0;
+      const arm = (ud.limbs || []).find(L => !L.leg && L.side > 0), hd = arm && arm.p.userData.hand;
+      if (arm && hd && ud.holding) { g.updateMatrixWorld(true); const v = new T.Vector3(hd.x, hd.y, hd.z).applyMatrix4(arm.p.matrixWorld); g.worldToLocal(v); ud.gunHolder.position.copy(v); }
+      else ud.gunHolder.position.y = (rl ? 1.28 : 1.5) / (g.scale.x || 1);
+    }
     body.position.y = (ud.baseY || 0) + Math.abs(Math.cos(ud._ph)) * (glb ? 0.16 : 0.1) * amt;   // rebote a cada paso
     body.rotation.z = s * (glb ? 0.12 : 0.05) * amt;                           // contoneo
     body.rotation.x = (glb ? 0.08 : 0.04) * amt;                               // se inclina un poco hacia delante
@@ -2124,6 +2129,7 @@
       const piv = new T.Group(); piv.position.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, Math.max(...ms.map(m => bb(m).max.z)));
       piv.name = 'limb_' + (G.leg ? 'leg' : 'arm') + '_' + (piv.position.x < cx ? 'L' : 'R'); raw.add(piv);
       for (const m of ms) { raw.remove(m); m.position.sub(piv.position); piv.add(m); }
+      const hm = ms.find(m => /hand/.test(m.name)); if (hm) { const c = bb(hm).getCenter(new T.Vector3()).sub(piv.position); piv.userData.hand = { x: c.x, y: c.y, z: c.z }; } // dónde está la mano
     }
   }
   (function loadGlb() {
