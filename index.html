@@ -279,7 +279,12 @@
   const trollTex = faceTex(drawTroll), wojakTex = faceTex(drawWojak), chadTex = faceTex(drawChadChest);
 
   // ---------- Character builders (facing +Z) ----------
-  function addLimb(g, x, y, z, r, h, color) { const m = cmesh(new T.CylinderGeometry(r, r, h, 8), color); m.position.set(x, y, z); g.add(m); return m; }
+  function addLimb(g, x, y, z, r, h, color) {
+    const m = cmesh(new T.CylinderGeometry(r, r, h, 8), color);
+    const p = new T.Group(); p.position.set(x, y + h / 2, z); m.position.set(0, -h / 2, 0); p.add(m); g.add(p); // pivote arriba (hombro/cadera)
+    (g.userData.limbs || (g.userData.limbs = [])).push({ p, leg: y < 1.0, side: x >= 0 ? 1 : -1 });
+    p.userData.len = h; return p; // se devuelve el pivote: girarlo abre el brazo desde el hombro
+  }
   function eyeSet(g, y, z) {
     [-0.34, 0.34].forEach(sx => {
       const w = cmesh(new T.SphereGeometry(0.3, 14, 14), 0xffffff); w.position.set(sx, y, z); g.add(w);
@@ -294,6 +299,8 @@
     const g = glbChar[type].clone(true);
     g.userData.headMeshes = [];
     g.traverse(o => { if (o.isMesh && isHeadName(o.name)) g.userData.headMeshes.push(o); });
+    g.userData.body = g.children[0]; g.userData.limbs = [];
+    g.traverse(o => { if (o.name && o.name.indexOf('limb_') === 0) g.userData.limbs.push({ p: o, leg: o.name.indexOf('leg') > 0, side: o.name.slice(-1) === 'R' ? 1 : -1 }); });
     return g;
   }
   function buildCharacter(type) {
@@ -329,10 +336,13 @@
         const ear = H(cmesh(new T.ConeGeometry(0.32, 0.7, 4), tan)); ear.position.set(sx * 1.35, 3.32, 0.02); ear.rotation.y = Math.PI / 4; ear.rotation.z = sx > 0 ? -0.28 : 0.28;
         const inner = H(cmesh(new T.ConeGeometry(0.17, 0.46, 4), cream)); inner.position.set(sx * 1.33, 3.27, 0.12); inner.rotation.y = Math.PI / 4; inner.rotation.z = ear.rotation.z;
       });
-      [-1, 1].forEach(k => { const l = cmesh(new T.CylinderGeometry(0.16, 0.18, 1.15, 10), tan); l.position.set(k * 0.18, 0.62, 0.48); l.rotation.z = k * 0.22; g.add(l);
-        const paw = cmesh(new T.SphereGeometry(0.2, 10, 10), cream); paw.position.set(-k * 0.05, 0.1, 0.62); paw.scale.set(1, 0.7, 1.3); g.add(paw); });
-      [-0.48, 0.48].forEach(sx => { const h = cmesh(new T.SphereGeometry(0.38, 12, 12), tan); h.position.set(sx, 0.38, -0.3); h.scale.set(0.8, 1.0, 1.2); g.add(h);
-        const f = cmesh(new T.SphereGeometry(0.18, 10, 10), cream); f.position.set(sx, 0.08, 0.0); f.scale.set(1, 0.6, 1.4); g.add(f); });
+      const legPivot = (x, y, z, side) => { const p = new T.Group(); p.position.set(x, y, z); g.add(p); (g.userData.limbs || (g.userData.limbs = [])).push({ p, leg: true, side }); return p; };
+      [-1, 1].forEach(k => { const p = legPivot(k * 0.2, 1.2, 0.5, k);          // patas delanteras (andan)
+        const l = cmesh(new T.CylinderGeometry(0.16, 0.18, 1.15, 10), tan); l.position.set(0, -0.58, 0); p.add(l);
+        const paw = cmesh(new T.SphereGeometry(0.2, 10, 10), cream); paw.position.set(0, -1.1, 0.12); paw.scale.set(1, 0.7, 1.3); p.add(paw); });
+      [-0.48, 0.48].forEach(sx => { const p = legPivot(sx, 0.75, -0.3, sx > 0 ? -1 : 1); // patas traseras, en contrafase
+        const h = cmesh(new T.SphereGeometry(0.38, 12, 12), tan); h.position.set(0, -0.37, 0); h.scale.set(0.8, 1.0, 1.2); p.add(h);
+        const f = cmesh(new T.SphereGeometry(0.18, 10, 10), cream); f.position.set(0, -0.67, 0.3); f.scale.set(1, 0.6, 1.4); p.add(f); });
       const tail = cmesh(new T.TorusGeometry(0.3, 0.14, 10, 18, Math.PI * 1.6), tan); tail.position.set(0, 1.85, -0.9); tail.rotation.set(0, Math.PI / 2, 0.4); g.add(tail);
       const tailTip = cmesh(new T.SphereGeometry(0.15, 10, 10), cream); tailTip.position.set(0, 2.1, -0.65); g.add(tailTip);
     } else if (type === 'troll') {
@@ -342,8 +352,8 @@
       const head = cmesh(new T.SphereGeometry(0.95, 24, 24), wh); head.position.set(0, 2.95, 0); head.scale.set(1.3, 1.08, 0.72); g.add(head); g.userData.headMeshes.push(head);
       const chin = cmesh(new T.SphereGeometry(0.62, 18, 18), wh); chin.position.set(0, 2.35, 0.12); chin.scale.set(1.45, 0.7, 0.8); g.add(chin); g.userData.headMeshes.push(chin);
       const face = new T.Mesh(new T.PlaneGeometry(2.4, 2.25), new T.MeshBasicMaterial({ map: trollTex, transparent: true, depthWrite: false })); face.position.set(0, 2.72, 0.72); g.add(face); g.userData.headMeshes.push(face);
-      [-0.62, 0.62].forEach(sx => { const a = addLimb(g, sx, 1.35, 0, 0.13, 1.35, blk); a.rotation.z = sx > 0 ? -0.5 : 0.5; const hnd = cmesh(new T.SphereGeometry(0.17, 10, 10), blk); hnd.position.set(sx * 1.45, 0.82, 0); g.add(hnd); });
-      [-0.26, 0.26].forEach(sx => { addLimb(g, sx, 0.4, 0, 0.15, 0.85, blk); const ft = cmesh(new T.SphereGeometry(0.2, 10, 10), blk); ft.position.set(sx, 0.02, 0.12); ft.scale.set(1, 0.8, 1.4); g.add(ft); });
+      [-0.42, 0.42].forEach(sx => { const a = addLimb(g, sx, 1.35, 0, 0.13, 1.35, blk); a.rotation.z = sx > 0 ? 0.55 : -0.55; const hnd = cmesh(new T.SphereGeometry(0.17, 10, 10), blk); hnd.position.set(0, -1.35, 0); a.add(hnd); }); // mano pegada al brazo
+      [-0.26, 0.26].forEach(sx => { const l = addLimb(g, sx, 0.4, 0, 0.15, 0.85, blk); const ft = cmesh(new T.SphereGeometry(0.2, 10, 10), blk); ft.position.set(0, -0.8, 0.12); ft.scale.set(1, 0.8, 1.4); l.add(ft); });
     } else if (type === 'wojak') {
       const skin = 0xeee6da, shirt = 0x9aa3ad, pants = 0x34404c;
       const torso = cmesh(new T.CylinderGeometry(0.46, 0.58, 1.45, 12), shirt); torso.position.y = 1.38; g.add(torso);
@@ -374,6 +384,7 @@
       addLimb(g, -0.28, 0.5, 0, 0.15, 1.1, skin);
       addLimb(g, 0.28, 0.5, 0, 0.15, 1.1, skin);
     }
+    const body = new T.Group(); while (g.children.length) body.add(g.children[0]); g.add(body); g.userData.body = body;
     g.scale.setScalar(0.8); // personajes un poco más pequeños
     return g;
   }
@@ -670,7 +681,8 @@
       const ax = x0 + dx * f0, az = z0 + dz * f0, bx = x0 + dx * f1, bz = z0 + dz * f1, hwid = width / 2;
       const sx0 = Math.min(ax, bx) - (Math.abs(dz) >= Math.abs(dx) ? hwid : 0), sx1 = Math.max(ax, bx) + (Math.abs(dz) >= Math.abs(dx) ? hwid : 0);
       const sz0 = Math.min(az, bz) - (Math.abs(dz) >= Math.abs(dx) ? 0 : hwid), sz1 = Math.max(az, bz) + (Math.abs(dz) >= Math.abs(dx) ? 0 : hwid);
-      solids.push(collider((sx0 + sx1) / 2, (y0 + top) / 2, (sz0 + sz1) / 2, sx1 - sx0, top - y0, sz1 - sz0));
+      const bot = Math.max(y0, top - 0.3); // capa fina bajo la rampa: debajo queda hueco libre donde quepa el jugador
+      solids.push(collider((sx0 + sx1) / 2, (bot + top) / 2, (sz0 + sz1) / 2, sx1 - sx0, top - bot, sz1 - sz0));
     }
   }
   // Bloque de edificio entrable de varias plantas: paredes con ventanas reales, forjados con hueco,
@@ -919,6 +931,10 @@
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, R = Math.min(x1 - x0, z1 - z0) / 2 - 0.6;
     tbox(cx - R, ry, cz - R, cx + R, ry + 0.9, cz + R, M.sand); // tambor
     const dome = new T.Mesh(new T.SphereGeometry(R, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), M.domeMat); dome.scale.y = 0.42; dome.position.set(cx, ry + 0.9, cz); dome.castShadow = true; mapGroup.add(dome);
+    for (let k = 0; k < 6; k++) { // colisión de la cúpula: capas que siguen su curva (no se atraviesa)
+      const a0 = k / 6 * Math.PI / 2, a1 = (k + 1) / 6 * Math.PI / 2, rr = R * Math.cos(a1) * 0.92 + R * (Math.cos(a0) - Math.cos(a1)) * 0.5;
+      const y0 = ry + 0.9 + R * 0.42 * Math.sin(a0), y1 = ry + 0.9 + R * 0.42 * Math.sin(a1);
+      solids.push(collider(cx, (y0 + y1) / 2, cz, rr * 1.6, y1 - y0, rr * 1.6)); }
     const lan = new T.Mesh(new T.CylinderGeometry(0.6, 0.8, 1.2, 8), M.sand); lan.position.set(cx, ry + 0.9 + R * 0.42 + 0.5, cz); mapGroup.add(lan);
     // ala este (1 planta) con terraza en la azotea
     const ex0 = x1, ex1 = tx(3.0);
@@ -1008,7 +1024,8 @@
     terrainBlockFn = fillTrenches(makeTerrainFn(0.3, 0.6)); // movimiento: el acantilado empieza pegado a la pared (sin rendijas)
     const size = 340, seg = 190, g = new T.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
     const pos = g.attributes.position, col = new Float32Array(pos.count * 3), n1 = seg + 1, cell = size / seg;
-    for (let i = 0; i < pos.count; i++) pos.setY(i, terrainFn(pos.getX(i), pos.getZ(i)));
+    // el pie llano de la colina queda un poco por debajo del pavimento (si coinciden en altura parpadean)
+    for (let i = 0; i < pos.count; i++) { const h = terrainFn(pos.getX(i), pos.getZ(i)); pos.setY(i, h - 0.25 * Math.max(0, 1 - Math.max(0, h) / 1.0)); }
     const HY = i => pos.getY(i);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i), rw = (i / n1) | 0, cl = i % n1;
@@ -1105,16 +1122,17 @@
     {
       const x0 = tx(-0.16), x1 = tx(0.92), z0 = tz(5.53), z1 = tz(4.54);
       tbox(x0, 0, z0, x1, 0.7, z0 + 0.5, TM.trim); tbox(x0, 0, z1 - 0.5, x1, 0.7, z1, TM.trim); tbox(x0, 0, z0, x0 + 0.5, 0.7, z1, TM.trim); tbox(x1 - 0.5, 0, z0, x1, 0.7, z1, TM.trim);
-      tbox(x0 + 0.5, 0, z0 + 0.5, x1 - 0.5, 0.5, z1 - 0.5, TM.grass, false);
+      tbox(x0 + 0.5, 0, z0 + 0.5, x1 - 0.5, 0.5, z1 - 0.5, TM.grass); // césped pisable
       tbox((x0 + x1) / 2 - 1, 0, (z0 + z1) / 2 - 1, (x0 + x1) / 2 + 1, 1.3, (z0 + z1) / 2 + 1, TM.stoneL);
     }
     // parque (I): borde de ladrillo, césped y árboles
     {
       const x0 = tx(5.8), x1 = tx(9.46), z0 = tz(-0.44), z1 = tz(-4.03);
       tbox(x0, 0, z0, x1, 0.12, z1, TM.brick, false);
-      tbox(x0 + 2, 0, z0 + 2, x1 - 2, 0.6, z1 - 2, TM.grass, false);
-      tbox(x0 + 1.6, 0, z0 + 1.6, x1 - 1.6, 0.7, z0 + 2.1, TM.trim); tbox(x0 + 1.6, 0, z1 - 2.1, x1 - 1.6, 0.7, z1 - 1.6, TM.trim);
-      tbox(x0 + 1.6, 0, z0 + 1.6, x0 + 2.1, 0.7, z1 - 1.6, TM.trim); tbox(x1 - 2.1, 0, z0 + 1.6, x1 - 1.6, 0.7, z1 - 1.6, TM.trim);
+      tbox(x0 + 2.1, 0, z0 + 2.1, x1 - 2.1, 0.55, z1 - 2.1, TM.grass); // césped pisable (no te hundes en él)
+      // bordillo a altura de escalón: se sube andando
+      tbox(x0 + 1.6, 0, z0 + 1.6, x1 - 1.6, 0.62, z0 + 2.1, TM.trim); tbox(x0 + 1.6, 0, z1 - 2.1, x1 - 1.6, 0.62, z1 - 1.6, TM.trim);
+      tbox(x0 + 1.6, 0, z0 + 2.1, x0 + 2.1, 0.62, z1 - 2.1, TM.trim); tbox(x1 - 2.1, 0, z0 + 2.1, x1 - 1.6, 0.62, z1 - 2.1, TM.trim);
       tTree(tx(7.3), tz(-1.6), 1.25); tTree(tx(8.4), tz(-2.4), 1.1); tTree(tx(7.0), tz(-3.0), 1.15); tTree(tx(6.4), tz(-1.0), 0.9);
     }
     // plazoleta con árboles y quiosco (T) y marquesina (U)
@@ -1264,7 +1282,7 @@
   }
   function respawnPlayer() {
     player.dead = false; player.hp = MAXHP; player.lastAttacker = null;
-    player.pos.copy(safeSpawn()); player.vel.set(0, 0, 0); player.protect = 2.5; updateHealth();
+    player.pos.copy(safeSpawn()); player.vel.set(0, 0, 0); player.protect = 3.0; player.safe = null; updateHealth();
   }
 
   // ---------- Avatar (3ª persona) ----------
@@ -1392,7 +1410,7 @@
     const c = buildCharacter(type);
     const headSet = new Set(c.userData.headMeshes), meshes = [];
     c.traverse(o => { if (o.isMesh) { meshes.push(o); enemyMap.set(o, c); } });
-    c.userData = { type: type, meshes: meshes, headSet: headSet, hp: 100, dir: new T.Vector3(1, 0, 0), t: 0, speed: 3 + Math.random() * 2, shootCd: 1 + Math.random(), strafe: 1 };
+    c.userData = Object.assign(c.userData, { type: type, meshes: meshes, headSet: headSet, hp: 100, dir: new T.Vector3(1, 0, 0), t: 0, speed: 3 + Math.random() * 2, shootCd: 1 + Math.random(), strafe: 1 });
     const p = enemySpawnPos(); c.position.copy(p);
     scene.add(c); enemies.push(c); return c;
   }
@@ -1428,7 +1446,7 @@
     if (reloading || player.dead || matchEnded) return; // en la pantalla de resultados no se dispara
     const w = WEAPONS[curWeapon], st = ammo[curWeapon];
     if (st.mag <= 0) { reload(); return; }
-    st.mag--; updateAmmo(); sfx(curWeapon); if (st.mag <= 0) setTimeout(reload, 180); // recarga automática
+    st.mag--; updateAmmo(); sfx(curWeapon); player.protect = 0; // disparar quita la protección de aparición if (st.mag <= 0) setTimeout(reload, 180); // recarga automática
     weaponGroup.position.z = gunBaseZ + 0.06; weaponGroup.rotation.x = -0.09; // retroceso
     flashMesh.visible = true; flashMesh.rotation.z = Math.random() * 6.28; flashMesh.scale.setScalar(0.8 + Math.random() * 0.6);
     flashMesh.userData.t = 0.04;
@@ -1539,6 +1557,7 @@
   function update(dt) {
     if (player.dead) { player.respawn -= dt; if (player.respawn <= 0) respawnPlayer(); }
     if (player.protect > 0) player.protect -= dt;
+    if (!player.dead && !reloading && ammo[curWeapon].mag <= 0) reload(); // un arma vacía siempre se recarga sola
     const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? RUN : WALK;
     const forward = new T.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
     const right = new T.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
@@ -1556,6 +1575,10 @@
     if (Math.hypot(player.pos.x - ox, player.pos.z - oz) > Math.hypot(move.x, move.z) * dt + 0.9) { player.pos.x = ox; player.pos.z = oz; }
     // pendiente del terreno demasiado empinada = pared
     if (terrainBlockFn) { const hb = terrainBlockFn(player.pos.x, player.pos.z); if (hb > 0.8 && hb > terrainBlockFn(ox, oz) - 0.01) { player.pos.x = ox; player.pos.z = oz; } } // la montaña es pared: no se sube
+    // red de seguridad: si acabas en una zona prohibida (p. ej. cayendo a la rendija entre un edificio y el acantilado), vuelves al último sitio válido
+    if (terrainBlockFn && !player.dead) { const hb = terrainBlockFn(player.pos.x, player.pos.z);
+      if (hb > 0.8 && player.pos.y < hb - 0.3) { if (player.safe) { player.pos.copy(player.safe); player.vel.set(0, 0, 0); } }
+      else if (player.grounded && hb <= 0.8) { if (!player.safe) player.safe = new T.Vector3(); player.safe.copy(player.pos); } }
     if (cityBounds) { player.pos.x = Math.max(cityBounds[0] + 1, Math.min(cityBounds[1] - 1, player.pos.x)); player.pos.z = Math.max(cityBounds[2] + 1, Math.min(cityBounds[3] - 1, player.pos.z)); }
     else { const B = ARENA - 1; player.pos.x = Math.max(-B, Math.min(B, player.pos.x)); player.pos.z = Math.max(-B, Math.min(B, player.pos.z)); }
     // nunca quedarse metido dentro de la ladera
@@ -1676,14 +1699,40 @@
   let pChar = null;
   function setPreview(type) { if (pChar) pScene.remove(pChar); pChar = buildCharacter(type); pScene.add(pChar); }
 
+  // ---------- Animación de andar ----------
+  function animateChar(g, dt, forceSp) {
+    const ud = g.userData; if (!ud || !ud.body) return;
+    if (!ud._lp) { ud._lp = g.position.clone(); ud._sp = 0; ud._ph = 0; }
+    let sp = Math.hypot(g.position.x - ud._lp.x, g.position.z - ud._lp.z) / Math.max(dt, 1e-3);
+    if (sp > 60) sp = 0; // teletransporte / reaparición
+    if (forceSp !== undefined) sp = forceSp;
+    ud._lp.copy(g.position);
+    ud._sp += (sp - ud._sp) * Math.min(1, dt * 10);
+    const amt = Math.min(1, ud._sp / 9);
+    if (amt > 0.04) ud._ph += dt * (5 + ud._sp * 0.7); else ud._ph *= 0.9;
+    const s = Math.sin(ud._ph), body = ud.body, glb = !ud.limbs || !ud.limbs.length;
+    for (const L of ud.limbs || []) {
+      const ph = L.side > 0 ? s : -s;                       // piernas y brazos alternos
+      L.p.rotation.x = (L.leg ? ph * 0.75 : -ph * 0.55) * amt;
+    }
+    body.position.y = Math.abs(Math.cos(ud._ph)) * (glb ? 0.16 : 0.1) * amt;   // rebote a cada paso
+    body.rotation.z = s * (glb ? 0.12 : 0.05) * amt;                           // contoneo
+    body.rotation.x = (glb ? 0.08 : 0.04) * amt;                               // se inclina un poco hacia delante
+  }
+  function animateChars(dt) {
+    for (const e of enemies) if (e.visible) animateChar(e, dt);
+    for (const id in remotes) animateChar(remotes[id].group, dt);
+    if (avatar && avatar.visible) animateChar(avatar, dt);
+  }
+
   // ---------- Loop ----------
   let last = performance.now();
   function animate() {
     requestAnimationFrame(animate);
     const now = performance.now(); let dt = (now - last) / 1000; last = now; if (dt > 0.05) dt = 0.05;
-    if (running) { if (window.__botTick) window.__botTick(dt); update(dt); }
+    if (running) { if (window.__botTick) window.__botTick(dt); update(dt); animateChars(dt); }
     renderer.render(scene, camera);
-    if (!running && pChar) { pChar.rotation.y += 0.012; pRenderer.render(pScene, pCam); }
+    if (!running && pChar) { pChar.rotation.y += 0.012; animateChar(pChar, dt, window.__previewSp !== undefined ? window.__previewSp : 7); pRenderer.render(pScene, pCam); } // el personaje del menú camina en el sitio
   }
   animate();
 
@@ -1719,6 +1768,21 @@
     for (const id in remotes) { const o = remotes[id]; if (o.char !== 'stick' && o.char !== 'chad') continue;
       const r = makeRemotePlayer(id, o.char); r.group.position.copy(o.group.position); r.target.copy(o.target); r.yaw = o.yaw; r.hp = o.hp; r.dead = o.dead; r.w = o.w; r.group.visible = o.group.visible; }
   }
+  // agrupa las piezas de cada brazo/pierna del .glb bajo un pivote en el hombro/cadera (coordenadas del modelo, Z arriba)
+  function rigLimbs(raw) {
+    const bb = m => { m.geometry.computeBoundingBox(); return m.geometry.boundingBox; };
+    const torso = raw.children.find(m => /body_core|torso/.test(m.name)); if (!torso) return;
+    const cx = (bb(torso).min.x + bb(torso).max.x) / 2;
+    const groups = [{ re: /left_(upper_arm|forearm|hand)|bat_/, leg: false }, { re: /right_(upper_arm|forearm|hand)/, leg: false },
+      { re: /_(leg|foot|shoe)$/, leg: true }, { re: /_(leg|foot|shoe)_1$/, leg: true }];
+    for (const G of groups) {
+      const ms = raw.children.filter(m => m.isMesh && G.re.test(m.name)); if (!ms.length) continue;
+      const main = ms.find(m => /upper_arm|_leg/.test(m.name)) || ms[0], b = bb(main);
+      const piv = new T.Group(); piv.position.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, Math.max(...ms.map(m => bb(m).max.z)));
+      piv.name = 'limb_' + (G.leg ? 'leg' : 'arm') + '_' + (piv.position.x < cx ? 'L' : 'R'); raw.add(piv);
+      for (const m of ms) { raw.remove(m); m.position.sub(piv.position); piv.add(m); }
+    }
+  }
   (function loadGlb() {
     if (typeof THREE.GLTFLoader === 'undefined') { console.warn('GLTFLoader no disponible'); return; }
     new THREE.GLTFLoader().load('both_characters_lowpoly.glb', function (gltf) {
@@ -1730,6 +1794,7 @@
             const m = o.clone(); m.material = new T.MeshBasicMaterial({ vertexColors: true }); m.name = o.name; raw.add(m);
           }
         });
+        rigLimbs(raw);                    // brazos y piernas con pivote para poder andar
         raw.rotation.x = -Math.PI / 2; // el modelo viene Z-up -> lo ponemos de pie (Y-up)
         raw.updateMatrixWorld(true);
         let box = new T.Box3().setFromObject(raw); const size = box.getSize(new T.Vector3());
@@ -2013,12 +2078,12 @@
     const Q = new URLSearchParams(location.search);
     if (!Q.has('bot')) return;
     const EXPECT = +(Q.get('n') || 2);
-    const R = { netT0: performance.now(), started: Date.now(), mode: Q.has('host') ? 'host' : Q.has('join') ? 'join' : 'solo', map: Q.get('map') || 'city',
+    const R = { anim: { moving: 0, animated: 0 }, netT0: performance.now(), started: Date.now(), mode: Q.has('host') ? 'host' : Q.has('join') ? 'join' : 'solo', map: Q.get('map') || 'city',
       errors: [], issues: {}, stairs: { tested: 0, ok: 0, fail: [] }, combat: { shots: 0, hits: 0, kills: 0, deaths: 0 },
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
     match.limitSec = +(Q.get('secs') || 60); R.rounds = [];
-    window.__botDbg = { terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
+    window.__botDbg = { avatar: () => avatar, setChar: c => { selectedChar = c; setAvatar(c); }, terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
     const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
     const issue = (kind, pos, extra) => {
       const key = kind + '@' + Math.round(pos.x / 4) * 4 + ',' + Math.round(pos.y) + ',' + Math.round(pos.z / 4) * 4;
@@ -2069,7 +2134,7 @@
         if (terrainH(p.x, p.z) < 0.4 && !insideSolid(p)) return p; }
       return spawnPoint.clone();
     }
-    let noAmmoT = 0, prevEnded = false, prevP = null, aliveAt = 0;
+    let noAmmoT = 0, prevEnded = false, prevP = null, aliveAt = 0, shotsAtSpawn = 0;
     let stairIdx = R.mode === 'join' ? 27 : 0, task = null, taskT = 0, lastPos = null, stuckT = 0, moveCheckT = 0, unstickT = 0, strafe = 1, strafeT = 0, fpsAcc = 0, fpsN = 0, fpsT = 0, wasDead = false, lastScore = 0, weaponT = 8;
     function newTask() {
       taskT = 0; unstickT = 0; stuckT = 0; lastPos = null; moveCheckT = 0;
@@ -2104,8 +2169,8 @@
       if (fpsT > 2) { const f = fpsN / fpsAcc; R.fps.min = Math.min(R.fps.min, +f.toFixed(1)); R.fps.samples.push(+f.toFixed(1)); if (R.fps.samples.length > 60) R.fps.samples.shift(); if (f < 15) issue('low_fps', player.pos, f.toFixed(0) + 'fps'); fpsAcc = 0; fpsN = 0; fpsT = 0; }
       for (const k of ['KeyW', 'KeyA', 'KeyD', 'KeyS', 'Space']) keys[k] = false;
       firing = false;
-      if (player.dead) { if (!wasDead && performance.now() - aliveAt < 4000) issue('spawn_killed', player.pos, ((performance.now() - aliveAt) / 1000).toFixed(1) + 's'); if (!wasDead && matchEnded) issue('killed_after_end', player.pos); wasDead = true; return; }
-      if (wasDead) { wasDead = false; aliveAt = performance.now(); R.combat.deaths++; log('muerto'); task = null; prevP = null;
+      if (player.dead) { if (!wasDead && performance.now() - aliveAt < 2900 && R.combat.shots === shotsAtSpawn) issue('spawn_killed', player.pos, ((performance.now() - aliveAt) / 1000).toFixed(1) + 's sin disparar (protección fallida)'); if (!wasDead && matchEnded) issue('killed_after_end', player.pos); wasDead = true; return; }
+      if (wasDead) { wasDead = false; aliveAt = performance.now(); shotsAtSpawn = R.combat.shots; R.combat.deaths++; log('muerto'); task = null; prevP = null;
         if (insideSolid(player.pos) || (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 0.5)) issue('bad_spawn', player.pos); }
       if (ammo[curWeapon].mag <= 0 && !reloading) { noAmmoT += dt; if (noAmmoT > 2) { issue('reload_stuck', player.pos, curWeapon); noAmmoT = 0; } } else noAmmoT = 0;
       if (score !== lastScore) { R.combat.kills += Math.max(0, score - lastScore); lastScore = score; }
@@ -2125,6 +2190,11 @@
         else if (Math.abs(player.pos.z - q.z) < u.hd && Math.sign(player.pos.x - q.x) !== Math.sign(prevP.x - q.x)) issue('crossed_window', player.pos); }
       prevP = player.pos.clone();
       R.maxY = Math.max(R.maxY, +player.pos.y.toFixed(1));
+      // ¿los rivales que se mueven se ven andando (piernas/cuerpo animados)?
+      for (const g of (net.active ? Object.values(remotes).map(r => r.group) : enemies)) { const u = g.userData; if (!u || !u.body || !(u._sp > 3)) continue;
+        R.anim.moving++; const lim = (u.limbs || []).reduce((m, L) => Math.max(m, Math.abs(L.p.rotation.x)), 0);
+        if (lim > 0.05 || Math.abs(u.body.rotation.z) > 0.01 || u.body.position.y > 0.01) R.anim.animated++; }
+      if (R.anim.moving > 400 && R.anim.animated / R.anim.moving < 0.6) { issue('no_walk_anim', player.pos, (100 * R.anim.animated / R.anim.moving | 0) + '%'); R.anim.moving = R.anim.animated = 0; }
       // cambiar de arma de vez en cuando
       weaponT -= dt; if (weaponT <= 0) { weaponT = 10 + Math.random() * 10; setWeapon(['rifle', 'shotgun', 'sniper'][(Math.random() * 3) | 0]); }
       // combate
