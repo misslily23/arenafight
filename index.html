@@ -146,7 +146,7 @@
   </div>
   <input id="nameInput" maxlength="12" placeholder="Tu nombre" />
   <div id="mapSel">
-    <button class="mapbtn active" data-map="desert">🏜️ Desierto</button>
+    <button class="mapbtn active" data-map="desert">🌵 Pueblo del Desierto</button>
     <button class="mapbtn" data-map="city">🏙️ Pisos Picados</button>
   </div>
   <button id="playBtn">JUGAR (vs bots)</button>
@@ -321,9 +321,16 @@
     } else if (type === 'doge') {
       // Kabosu: cabeza grande redonda, careta crema hasta el pecho, mirada de reojo, cejas crema, patas cruzadas, cola enroscada
       const tan = 0xd99a4e, cream = 0xf6e8cc, d2 = 0x241c18;
-      const H = m => { g.add(m); g.userData.headMeshes.push(m); return m; };
-      const body = cmesh(new T.SphereGeometry(0.85, 18, 18), tan); body.position.set(0, 1.15, -0.1); body.scale.set(1.0, 1.15, 1.05); g.add(body);
-      const chest = cmesh(new T.SphereGeometry(0.62, 16, 16), cream); chest.position.set(0, 1.25, 0.42); chest.scale.set(1.05, 1.25, 0.75); g.add(chest);
+      // cuerpo de persona con los colores del shiba; la cabeza es la de siempre, subida encima del cuello
+      const hg = new T.Group(); hg.position.y = 0.5; g.add(hg);
+      const H = m => { hg.add(m); g.userData.headMeshes.push(m); return m; };
+      const torso = cmesh(new T.CylinderGeometry(0.46, 0.56, 1.45, 14), tan); torso.position.y = 1.4; g.add(torso);
+      const chest = cmesh(new T.SphereGeometry(0.5, 16, 16), cream); chest.position.set(0, 1.45, 0.24); chest.scale.set(1.0, 1.35, 0.6); g.add(chest);
+      const neck = cmesh(new T.CylinderGeometry(0.26, 0.3, 0.4, 12), cream); neck.position.y = 2.25; g.add(neck);
+      [-0.66, 0.66].forEach(sx => { const a = addLimb(g, sx, 1.4, 0, 0.15, 1.35, tan); a.rotation.z = sx > 0 ? 0.12 : -0.12;
+        const paw = cmesh(new T.SphereGeometry(0.2, 10, 10), cream); paw.position.set(0, -1.38, 0); a.add(paw); });
+      [-0.25, 0.25].forEach(sx => { const l = addLimb(g, sx, 0.45, 0, 0.18, 0.95, tan);
+        const ft = cmesh(new T.SphereGeometry(0.22, 10, 10), cream); ft.position.set(0, -0.92, 0.12); ft.scale.set(1, 0.6, 1.4); l.add(ft); });
       const head = H(cmesh(new T.SphereGeometry(0.92, 22, 22), tan)); head.position.set(0, 2.55, 0.1); head.scale.set(1.08, 0.98, 1.0);
       const mask = H(cmesh(new T.SphereGeometry(0.78, 20, 20), cream)); mask.position.set(0, 2.36, 0.36); mask.scale.set(1.12, 0.8, 0.82);
       const muzzle = H(cmesh(new T.SphereGeometry(0.42, 16, 16), cream)); muzzle.position.set(0, 2.28, 0.98); muzzle.scale.set(1.0, 0.72, 0.9);
@@ -336,15 +343,8 @@
         const ear = H(cmesh(new T.ConeGeometry(0.32, 0.7, 4), tan)); ear.position.set(sx * 1.35, 3.32, 0.02); ear.rotation.y = Math.PI / 4; ear.rotation.z = sx > 0 ? -0.28 : 0.28;
         const inner = H(cmesh(new T.ConeGeometry(0.17, 0.46, 4), cream)); inner.position.set(sx * 1.33, 3.27, 0.12); inner.rotation.y = Math.PI / 4; inner.rotation.z = ear.rotation.z;
       });
-      const legPivot = (x, y, z, side) => { const p = new T.Group(); p.position.set(x, y, z); g.add(p); (g.userData.limbs || (g.userData.limbs = [])).push({ p, leg: true, side }); return p; };
-      [-1, 1].forEach(k => { const p = legPivot(k * 0.2, 1.2, 0.5, k);          // patas delanteras (andan)
-        const l = cmesh(new T.CylinderGeometry(0.16, 0.18, 1.15, 10), tan); l.position.set(0, -0.58, 0); p.add(l);
-        const paw = cmesh(new T.SphereGeometry(0.2, 10, 10), cream); paw.position.set(0, -1.1, 0.12); paw.scale.set(1, 0.7, 1.3); p.add(paw); });
-      [-0.48, 0.48].forEach(sx => { const p = legPivot(sx, 0.75, -0.3, sx > 0 ? -1 : 1); // patas traseras, en contrafase
-        const h = cmesh(new T.SphereGeometry(0.38, 12, 12), tan); h.position.set(0, -0.37, 0); h.scale.set(0.8, 1.0, 1.2); p.add(h);
-        const f = cmesh(new T.SphereGeometry(0.18, 10, 10), cream); f.position.set(0, -0.67, 0.3); f.scale.set(1, 0.6, 1.4); p.add(f); });
-      const tail = cmesh(new T.TorusGeometry(0.3, 0.14, 10, 18, Math.PI * 1.6), tan); tail.position.set(0, 1.85, -0.9); tail.rotation.set(0, Math.PI / 2, 0.4); g.add(tail);
-      const tailTip = cmesh(new T.SphereGeometry(0.15, 10, 10), cream); tailTip.position.set(0, 2.1, -0.65); g.add(tailTip);
+      const tail = cmesh(new T.TorusGeometry(0.3, 0.14, 10, 18, Math.PI * 1.6), tan); tail.position.set(0, 1.05, -0.62); tail.rotation.set(0, Math.PI / 2, 0.4); g.add(tail);
+      const tailTip = cmesh(new T.SphereGeometry(0.15, 10, 10), cream); tailTip.position.set(0, 1.3, -0.4); g.add(tailTip);
     } else if (type === 'troll') {
       const blk = 0x171717, wh = 0xf6f4ef;
       const torso = cmesh(new T.CylinderGeometry(0.36, 0.46, 1.5, 12), blk); torso.position.y = 1.35; g.add(torso);
@@ -610,6 +610,11 @@
       speckle(x, s, 700, 0.12);
     });
   }
+  function stuccoTex(base) {
+    return canvasTex(256, (x, s) => { x.fillStyle = base; x.fillRect(0, 0, s, s);
+      for (let i = 0; i < 120; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)'; x.beginPath(); x.ellipse(Math.random() * s, Math.random() * s, 8 + Math.random() * 30, 5 + Math.random() * 18, Math.random() * 3, 0, 7); x.fill(); }
+      speckle(x, s, 900, 0.08); });
+  }
   function tiltedMats() {
     if (TM) return TM;
     const L = t => new T.MeshLambertMaterial({ map: t }), C = c => new T.MeshLambertMaterial({ color: c });
@@ -630,6 +635,11 @@
       paving: L(canvasTex(256, (x, s) => { x.fillStyle = '#9c8f76'; x.fillRect(0, 0, s, s); speckle(x, s, 1200, 0.14); x.fillStyle = 'rgba(60,52,40,.45)'; for (let i = 0; i <= s; i += 64) { x.fillRect(i, 0, 2, s); x.fillRect(0, i, s, 2); } })),
       asphalt: L(canvasTex(128, (x, s) => { x.fillStyle = '#4a494c'; x.fillRect(0, 0, s, s); speckle(x, s, 1200, 0.15); })),
       fabR: C(0xa8433c), fabB: C(0x3e5f8f), fabG: C(0x5c7a45), sheet: C(0xe9e4da), metal: C(0x9aa0a6), screen: C(0x1a1d22), rug: C(0x8c3b3b), book1: C(0x9b3b2f), book2: C(0x2f5a8a), book3: C(0xc9a23a), counter: C(0xd9d3c4), crate: C(0x9b7448),
+      stuccoW: L(stuccoTex('#efe7d6')), stuccoO: L(stuccoTex('#d9864a')), stuccoP: L(stuccoTex('#d99788')), stuccoY: L(stuccoTex('#e3c072')), stuccoB: L(stuccoTex('#5aa3b5')),
+      terra: L(canvasTex(256, (x, s) => { x.fillStyle = '#b5583a'; x.fillRect(0, 0, s, s); for (let i = 0; i < s; i += 32) for (let j = 0; j < s; j += 32) { x.fillStyle = `rgba(${150 + Math.random() * 60 | 0},${70 + Math.random() * 30 | 0},${45 + Math.random() * 20 | 0},1)`; x.fillRect(i + 2, j + 2, 28, 28); } speckle(x, s, 600, 0.12); })),
+      sandG: L(canvasTex(256, (x, s) => { x.fillStyle = '#d9bf8a'; x.fillRect(0, 0, s, s); speckle(x, s, 2500, 0.16); for (let i = 0; i < 40; i++) { x.fillStyle = 'rgba(180,140,90,.12)'; x.beginPath(); x.ellipse(Math.random() * s, Math.random() * s, 20 + Math.random() * 40, 6 + Math.random() * 10, Math.random() * 3, 0, 7); x.fill(); } })),
+      dirt: L(canvasTex(128, (x, s) => { x.fillStyle = '#b89668'; x.fillRect(0, 0, s, s); speckle(x, s, 900, 0.2); })),
+      turq: C(0x2f9c95), cactus: C(0x4f7d3a), water: new T.MeshLambertMaterial({ color: 0x4fa3c9, transparent: true, opacity: 0.8 }),
       tile: C(0x8a4535), slate: C(0x6d717a), red: C(0xc8392f), yellow: C(0xe2c547), green: C(0x4f8a35), leaf: C(0x3f7a2e), trunk: C(0x6b4a2e)
     };
     return TM;
@@ -828,7 +838,7 @@
     tbox(x0 + t / 2, 0, z0 + t / 2, x1 - t / 2, 0.04, z1 - t / 2, M.wood, false);
     // escaleras y forjados
     for (let j = 1; j <= floors; j++) {
-      const y = j * fh, top = j === floors, sm = top ? M.roof : M.wood;
+      const y = j * fh, top = j === floors, sm = top ? (o.roofMat || M.roof) : M.wood;
       if (canStairs && (!top || o.roofAccess !== false)) {
         const [hx0, hx1] = wells[(j - 1) % 2];
         tbox(x0, y - 0.3, z0, hx0, y, z1, sm); tbox(hx1, y - 0.3, z0, x1, y, z1, sm);
@@ -1167,6 +1177,141 @@
   function batchesDone() { flushBatches(); batches = new Map(); }
 
   // ===== construcción de mapas =====
+
+  // ===================== PUEBLO DEL DESIERTO (estilo zone wars desierto / pueblo mexicano) =====================
+  function desertTerrainFn() {
+    return (x, z) => {
+      const r = Math.max(Math.abs(x), Math.abs(z)), n = vnoise(x * 0.05, z * 0.05), n2 = vnoise(x * 0.13 + 7, z * 0.13);
+      let h = 0;
+      const ring = r - (60 + n * 7);                                   // mesas rojas alrededor
+      if (ring > 0) h = Math.min(1, ring / 9) * (16 + n2 * 10);
+      for (const [mx, mz, mr, mh] of [[-56, -54, 10, 15], [57, 54, 9, 13], [-60, 54, 8, 11], [56, -58, 7, 12]]) { // mesas sueltas en las esquinas
+        const d = Math.hypot(x - mx, z - mz) - mr * (0.85 + n * 0.3); if (d < 4) h = Math.max(h, mh * Math.min(1, (4 - d) / 4) ** 0.5); }
+      for (const [a0, a1, b0, b1] of roadZones.concat(flatZones)) {  // calles y casas siempre en llano
+        const d = Math.max(a0 - x, x - a1, b0 - z, z - b1, 0) - 2.4; if (d < 3) { const k = Math.max(0, d) / 3; h *= k * k * (3 - 2 * k); } }
+      return h > 0.05 ? h : -0.08;
+    };
+  }
+  function buildDesertTerrain(floors) {
+    terrainFn = terrainBlockFn = desertTerrainFn();
+    const size = 220, seg = 150, g = new T.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
+    const pos = g.attributes.position, col = new Float32Array(pos.count * 3), cell = size / seg, n1 = seg + 1;
+    for (let i = 0; i < pos.count; i++) { const h = terrainFn(pos.getX(i), pos.getZ(i)); pos.setY(i, h - 0.25 * Math.max(0, 1 - Math.max(0, h))); }
+    const HY = i => pos.getY(i);
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i), rw = (i / n1) | 0, cl = i % n1;
+      const sl = Math.hypot(HY(rw * n1 + Math.min(seg, cl + 1)) - HY(rw * n1 + Math.max(0, cl - 1)), HY(Math.min(seg, rw + 1) * n1 + cl) - HY(Math.max(0, rw - 1) * n1 + cl)) / (2 * cell);
+      const strata = 0.5 + 0.5 * Math.sin(y * 1.3), n = vnoise(pos.getX(i) * 0.3, pos.getZ(i) * 0.3);
+      let r, gg, b;
+      if (sl > 0.7) { r = 0.66 + 0.12 * strata; gg = 0.36 + 0.08 * strata; b = 0.24 + 0.05 * strata; }           // roca roja con estratos
+      else { const t = 0.9 + 0.15 * n; r = 0.85 * t; gg = 0.72 * t; b = 0.5 * t; }                              // arena
+      col[i * 3] = r; col[i * 3 + 1] = gg; col[i * 3 + 2] = b;
+    }
+    g.setAttribute('color', new T.BufferAttribute(col, 3)); g.computeVertexNormals();
+    const m = new T.Mesh(g, new T.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = m.castShadow = true; mapGroup.add(m); floors.push(m);
+  }
+  function tDirtRoad(x0, x1, z0, z1) { roadZones.push([x0, x1, z0, z1]); tbox(x0, 0, z0, x1, 0.03, z1, TM.dirt, false, 6); }
+  function tCactus(x, z, s) {
+    s = s || 1; tbox(x - 0.35 * s, 0, z - 0.35 * s, x + 0.35 * s, 4.2 * s, z + 0.35 * s, TM.cactus, true, 1);
+    tbox(x - 1.3 * s, 1.6 * s, z - 0.25 * s, x - 0.35 * s, 2.1 * s, z + 0.25 * s, TM.cactus, false, 1); tbox(x - 1.3 * s, 2.1 * s, z - 0.25 * s, x - 0.8 * s, 3.3 * s, z + 0.25 * s, TM.cactus, false, 1);
+    tbox(x + 0.35 * s, 2.3 * s, z - 0.25 * s, x + 1.2 * s, 2.8 * s, z + 0.25 * s, TM.cactus, false, 1); tbox(x + 0.7 * s, 2.8 * s, z - 0.25 * s, x + 1.2 * s, 3.7 * s, z + 0.25 * s, TM.cactus, false, 1);
+  }
+  function tBarrel(x, z) { const m = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, 1.2, 10), TM.wood); m.position.set(x, 0.6, z); m.castShadow = true; mapGroup.add(m); solids.push(collider(x, 0.6, z, 1, 1.2, 1)); }
+  function tRock(x, z, s) { const m = new T.Mesh(new T.DodecahedronGeometry(s, 0), new T.MeshLambertMaterial({ color: 0xa0613f })); m.position.set(x, s * 0.45, z); m.scale.y = 0.7; m.castShadow = true; mapGroup.add(m); solids.push(collider(x, s * 0.35, z, s * 1.4, s * 0.9, s * 1.4)); }
+  function tPalm(x, z) {
+    for (let i = 0; i < 6; i++) { const t = new T.Mesh(new T.CylinderGeometry(0.28 - i * 0.02, 0.32 - i * 0.02, 1.2, 7), TM.trunk); t.position.set(x + i * 0.08, 0.6 + i * 1.15, z); mapGroup.add(t); }
+    solids.push(collider(x, 3.5, z, 0.7, 7, 0.7));
+    for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2, leaf = new T.Mesh(new T.ConeGeometry(0.45, 3.4, 4), TM.leaf); leaf.position.set(x + 0.5 + Math.cos(a) * 1.4, 7.1, z + Math.sin(a) * 1.4); leaf.rotation.set(Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2); mapGroup.add(leaf); }
+  }
+  // casa de adobe entrable: vigas de madera bajo la azotea y marcos de madera
+  function tAdobe(x0, z0, x1, z1, floors, mat, doors, extra) {
+    const o = Object.assign({ x0, z0, x1, z1, floors, fh: 4.6, mat, band: mat, frame: TM.wood, doors, winW: 1.7, winStep: 3.6, parapet: mat, parapetH: 0.9, ac: 0, roofMat: TM.dirt }, extra || {});
+    const ry = tblock(o);
+    for (const zz of [z0 - 0.45, z1 + 0.05]) for (let x = x0 + 1; x < x1 - 0.5; x += 1.6) tbox(x, ry - 0.75, zz, x + 0.25, ry - 0.5, zz + 0.4, TM.trunk, false, 1); // vigas
+    return ry;
+  }
+  function tMission(cx, z0) { // misión blanca: nave alta, fachada con espadaña y dos campanarios
+    const M = TM, w = 16, d = 22, x0 = cx - w / 2, x1 = cx + w / 2, z1 = z0 + d, fh = 7.2;
+    const ry = tblock({ x0, z0, x1, z1, floors: 1, fh, mat: M.stuccoW, band: M.stuccoW, frame: M.wood, doors: 'S', arch: true, winW: 1.4, winStep: 4.2, parapet: M.stuccoW, parapetH: 0.6, ac: 0, stairs: false, roofMat: M.terra });
+    // espadaña curva sobre la puerta
+    for (let i = 0; i < 6; i++) { const hw = 5.2 - i * 0.85; tbox(cx - hw, ry + i * 0.55, z1 - 0.3, cx + hw, ry + (i + 1) * 0.55, z1 + 0.3, M.stuccoW); }
+    tArch(cx, ry + 1.2, z1, 0.8, true, M.wood); tbox(cx - 0.2, ry + 3.4, z1 - 0.1, cx + 0.2, ry + 4.6, z1 + 0.1, M.wood, false); tbox(cx - 0.6, ry + 4.0, z1 - 0.1, cx + 0.6, ry + 4.25, z1 + 0.1, M.wood, false); // cruz
+    for (const sx of [-1, 1]) { // campanarios
+      const tx0 = sx < 0 ? x0 - 3.6 : x1, tx1 = tx0 + 3.6, tz0 = z1 - 3.6, th = 13;
+      tbox(tx0, 0, tz0, tx1, th, z1, M.stuccoW);
+      tbox(tx0 - 0.2, th, tz0 - 0.2, tx1 + 0.2, th + 0.4, z1 + 0.2, M.stuccoW);
+      for (const [px, pz] of [[tx0, tz0], [tx1 - 0.6, tz0], [tx0, z1 - 0.6], [tx1 - 0.6, z1 - 0.6]]) tbox(px, th + 0.4, pz, px + 0.6, th + 3.2, pz + 0.6, M.stuccoW);
+      tbox(tx0 - 0.2, th + 3.2, tz0 - 0.2, tx1 + 0.2, th + 3.6, z1 + 0.2, M.stuccoW);
+      const dome = new T.Mesh(new T.SphereGeometry(1.9, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.terra); dome.position.set((tx0 + tx1) / 2, th + 3.6, (tz0 + z1) / 2); mapGroup.add(dome);
+      const bell = new T.Mesh(new T.CylinderGeometry(0.5, 0.9, 1.2, 10, 1, true), new T.MeshLambertMaterial({ color: 0xb08a3e, side: T.DoubleSide })); bell.position.set((tx0 + tx1) / 2, th + 2.0, (tz0 + z1) / 2); mapGroup.add(bell);
+    }
+  }
+  function tFountain(cx, cz) {
+    const M = TM, r = 3.4, h = 0.9;
+    tbox(cx - r, 0, cz - r, cx + r, h, cz - r + 0.5, M.stuccoW); tbox(cx - r, 0, cz + r - 0.5, cx + r, h, cz + r, M.stuccoW);
+    tbox(cx - r, 0, cz - r + 0.5, cx - r + 0.5, h, cz + r - 0.5, M.stuccoW); tbox(cx + r - 0.5, 0, cz - r + 0.5, cx + r, h, cz + r - 0.5, M.stuccoW);
+    tbox(cx - r + 0.5, 0, cz - r + 0.5, cx + r - 0.5, 0.6, cz + r - 0.5, M.water, false);
+    tbox(cx - 0.5, 0, cz - 0.5, cx + 0.5, 2.6, cz + 0.5, M.turq); tbox(cx - 1.3, 2.6, cz - 1.3, cx + 1.3, 2.9, cz + 1.3, M.stuccoW, false);
+  }
+  function tStall(x, z, col) { // puesto de mercado con toldo de color
+    const M = TM; for (const [px, pz] of [[x - 1.8, z - 1.2], [x + 1.8, z - 1.2], [x - 1.8, z + 1.2], [x + 1.8, z + 1.2]]) tbox(px - 0.1, 0, pz - 0.1, px + 0.1, 2.6, pz + 0.1, M.wood);
+    tbox(x - 1.9, 0, z - 1.2, x + 1.9, 1.0, z - 0.6, M.wood);
+    const aw = new T.Mesh(new T.BoxGeometry(4.2, 0.12, 3.0), new T.MeshLambertMaterial({ color: col })); aw.position.set(x, 2.75, z); aw.rotation.x = 0.12; aw.castShadow = true; mapGroup.add(aw);
+  }
+  function tWaterTower(x, z) {
+    const M = TM; for (const [dx, dz] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) tbox(x + dx - 0.25, 0, z + dz - 0.25, x + dx + 0.25, 9, z + dz + 0.25, M.wood);
+    tbox(x - 2.8, 9, z - 2.8, x + 2.8, 9.4, z + 2.8, M.wood);
+    const tank = new T.Mesh(new T.CylinderGeometry(2.6, 2.6, 4, 14), M.wood); tank.position.set(x, 11.4, z); tank.castShadow = true; mapGroup.add(tank); solids.push(collider(x, 11.4, z, 4.4, 4, 4.4));
+    const cap = new T.Mesh(new T.ConeGeometry(2.9, 1.6, 14), M.terra); cap.position.set(x, 14.2, z); mapGroup.add(cap);
+  }
+  function tGasStation(x0, z0) { // gasolinera: marquesina, surtidores y tienda
+    const M = TM;
+    for (const [px, pz] of [[x0 + 1, z0 + 1], [x0 + 13, z0 + 1], [x0 + 1, z0 + 9], [x0 + 13, z0 + 9]]) tbox(px - 0.3, 0, pz - 0.3, px + 0.3, 5.2, pz + 0.3, M.white);
+    tbox(x0, 5.2, z0, x0 + 14, 5.8, z0 + 10, M.white); tbox(x0, 5.2, z0 - 0.05, x0 + 14, 5.8, z0 + 0.05, M.red, false);
+    for (const px of [x0 + 4.5, x0 + 9.5]) { tbox(px - 0.6, 0, z0 + 4.4, px + 0.6, 1.8, z0 + 5.6, M.red); tbox(px - 0.4, 1.8, z0 + 4.6, px + 0.4, 2.1, z0 + 5.4, M.white, false); }
+    tAdobe(x0 + 2, z0 + 12, x0 + 12, z0 + 19, 1, M.stuccoY, 'N', { winW: 2.2 });
+    tbox(x0 + 15, 0, z0 - 1, x0 + 15.4, 7.5, z0 - 0.6, M.dark); tbox(x0 + 14, 7.5, z0 - 1.1, x0 + 16.4, 9.3, z0 - 0.5, M.red, false); // poste con cartel
+  }
+  function buildPueblo() {
+    const floors = [];
+    tiltedMats(); batches = new Map(); srand(19052024); flatZones.length = 0; roadZones.length = 0;
+    const gp = new T.PlaneGeometry(600, 600), uv = gp.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 60, uv.getY(i) * 60);
+    const ground = new T.Mesh(gp, TM.sandG); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; mapGroup.add(ground); floors.push(ground);
+    const M = TM;
+    // caminos de tierra y plaza de baldosas de barro
+    tDirtRoad(-66, 66, -3.5, 3.5); tDirtRoad(-3.5, 3.5, -20, 66);
+    tbox(-15, 0.03, -15, 15, 0.07, 15, M.terra, false, 3); roadZones.push([-15, 15, -15, 15]);
+    tFountain(0, 0);
+    tStall(-10, 11, 0xd8432f); tStall(-4, 11.5, 0x2f9c95); tStall(4, 11.5, 0xe3b22c); tStall(10, 11, 0xc13f8a);
+    for (const [x, z] of [[-12.5, -12.5], [12.5, -12.5], [-12.5, 12.5], [12.5, 12.5]]) tPalm(x, z);
+    for (const [x, z] of [[-6, 6], [6, 6], [-6, -6], [6, -6]]) tbox(x - 1.2, 0, z - 0.3, x + 1.2, 0.5, z + 0.3, M.wood); // bancos
+    // misión al norte de la plaza
+    tMission(0, -42);
+    // cantina (2 plantas) al este y casas de adobe alrededor (todas entrables, escaleras a la azotea)
+    tAdobe(19, 5, 33, 16, 2, M.stuccoO, 'W');
+    tAdobe(-34, 5, -20, 16, 2, M.stuccoB, 'E');
+    const H = [ // x0, z0, x1, z1, plantas, material, puerta
+      [-36, -34, -25, -24, 2, M.stuccoP, 'S'], [-50, -20, -40, -9, 1, M.stuccoY, 'E'], [-28, -56, -16, -46, 1, M.stuccoO, 'S'],
+      [24, -36, 36, -25, 2, M.stuccoY, 'S'], [42, -20, 52, -10, 1, M.stuccoP, 'W'], [18, -56, 30, -46, 1, M.stuccoW, 'S'],
+      [-36, 20, -24, 31, 2, M.stuccoO, 'N'], [-52, 36, -42, 47, 1, M.stuccoW, 'E'], [-24, 40, -13, 50, 1, M.stuccoP, 'N'],
+      [16, 20, 27, 30, 1, M.stuccoP, 'N'], [8, 40, 19, 51, 2, M.stuccoB, 'N'], [-14, 21, -6, 30, 1, M.stuccoY, 'E']
+    ];
+    for (const h of H) tAdobe(h[0], h[1], h[2], h[3], h[4], h[5], h[6]);
+    tGasStation(36, 28);
+    tWaterTower(48, -46);
+    // decoración: cactus, barriles, rocas, camionetas
+    for (const [x, z, sc] of [[-58, 8, 1.1], [-44, 56, 1], [-14, 60, 1.2], [30, 58, 0.9], [58, 16, 1.1], [58, -22, 1], [36, -60, 1.2], [-8, -60, 0.9], [-58, -28, 1], [-40, 2, 0.8], [40, 6, 0.9], [-4, 36, 0.8], [22, -18, 0.8]]) tCactus(x, z, sc);
+    for (const [x, z] of [[17.5, 7], [17.5, 8.4], [34.5, 26], [-18.5, 4], [-37, -23], [7, 38.5]]) tBarrel(x, z);
+    for (const [x, z, sc] of [[-60, -2, 2.2], [24, 62, 1.8], [62, -40, 2.4], [-30, -62, 2], [6, -62, 1.6], [-62, 26, 1.8]]) tRock(x, z, sc);
+    car(-8, 18, 0.3, 0xb9bec4); car(42, 0, Math.PI / 2, 0xd8432f); car(-24, -16, 1.2, 0x2f9c95); car(44, 44, 0, 0xe3b22c);
+    buildDesertTerrain(floors);
+    batchesDone();
+    { const B = 66; cityBounds = [-B, B, -B, B];
+      for (const [x0, z0, x1, z1] of [[-B - 4, -B - 4, B + 4, -B], [-B - 4, B, B + 4, B + 4], [-B - 4, -B, -B, B], [B, -B, B + 4, B]])
+        solids.push(collider((x0 + x1) / 2, 100, (z0 + z1) / 2, x1 - x0, 200, z1 - z0)); }
+    spawnPoint.set(0, 0, 20);
+    return floors;
+  }
   function buildDesert() {
     const floors = [];
     const sandFloor = new T.Mesh(new T.PlaneGeometry(600, 600), new T.MeshLambertMaterial({ color: 0xd8c48f }));
@@ -1222,13 +1367,13 @@
   function clearMap() { for (let i = mapGroup.children.length - 1; i >= 0; i--) mapGroup.remove(mapGroup.children[i]); solids.length = 0; ramps.length = 0; winCols.length = 0; }
   function buildMap(kind) {
     currentMap = kind; clearMap();
-    ARENA = kind === 'city' ? 125 : 44; terrainFn = null; terrainBlockFn = null; cityBounds = null;
+    ARENA = kind === 'city' ? 125 : 70; terrainFn = null; terrainBlockFn = null; cityBounds = null;
     const city = kind === 'city';
-    sun.castShadow = city; sun.intensity = city ? 1.05 : 0.9;
-    if (city) sun.position.set(105, 105, 70); else sun.position.set(50, 90, 30); // como en el original: sol del este
-    if (hemi) hemi.intensity = city ? 0.55 : 1.0;
-    ambient.intensity = city ? 0.22 : 0;
-    const floors = kind === 'city' ? buildTilted() : buildDesert();
+    sun.castShadow = true; sun.intensity = city ? 1.05 : 1.15;
+    if (city) sun.position.set(105, 105, 70); else sun.position.set(-80, 110, 60); // desierto: sol alto y cálido
+    if (hemi) hemi.intensity = city ? 0.55 : 0.6;
+    ambient.intensity = city ? 0.22 : 0.2;
+    const floors = kind === 'city' ? buildTilted() : buildPueblo();
     walkables = [...floors, ...solids, ...ramps];
     worldSolids = walkables.slice();
   }
@@ -2085,7 +2230,7 @@
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
     match.limitSec = +(Q.get('secs') || 60); R.rounds = [];
-    window.__botDbg = { avatar: () => avatar, setChar: c => { selectedChar = c; setAvatar(c); }, terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
+    window.__botDbg = { setView: (y, p) => { yaw = y; pitch = p; }, avatar: () => avatar, setChar: c => { selectedChar = c; setAvatar(c); }, terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
     const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
     const issue = (kind, pos, extra) => {
       const key = kind + '@' + Math.round(pos.x / 4) * 4 + ',' + Math.round(pos.y) + ',' + Math.round(pos.z / 4) * 4;
