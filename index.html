@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -109,64 +109,64 @@
 
 <div id="mpReady">
   <div class="rbox">
-    <h2>Sala</h2>
-    <p id="mpReadyMsg">Pulsa ENTRAR para entrar a la partida.</p>
-    <button id="mpEnter">ENTRAR</button>
+    <h2>Room</h2>
+    <p id="mpReadyMsg">Press ENTER to join the match.</p>
+    <button id="mpEnter">ENTER</button>
   </div>
 </div>
 
 <div id="endscreen">
   <div class="ebox">
-    <h2 id="endTitle">¡Fin de la partida!</h2>
+    <h2 id="endTitle">Match over!</h2>
     <div id="endBoard"></div>
-    <p style="color:#9fb3c8;margin-top:14px">Nueva partida en unos segundos…</p>
+    <p style="color:#9fb3c8;margin-top:14px">New match in a few seconds…</p>
   </div>
 </div>
 
 <div id="hud">
-  <div id="stats">Bajas: <b id="score">0</b> · Muertes: <span id="deaths">0</span><br/><span id="viewmode" style="color:#9fb3c8">Vista: 1ª persona</span></div>
+  <div id="stats">Kills: <b id="score">0</b> · Deaths: <span id="deaths">0</span><br/><span id="viewmode" style="color:#9fb3c8">View: 1st person</span></div>
   <div id="timer">4:00</div>
   <div id="leaderboard"></div>
   <div id="health"><div id="healthbar"></div><span id="hptext">100</span></div>
   <div id="hint">
-    <kbd>WASD</kbd> moverte · <kbd>Espacio</kbd> saltar · <kbd>Shift</kbd> correr<br/>
-    <kbd>1/2/3</kbd> armas · <kbd>Clic izq</kbd> disparar · <kbd>Clic der</kbd> apuntar<br/>
-    <kbd>R</kbd> recargar · <kbd>V</kbd> 1ª/3ª persona · <kbd>Esc</kbd> pausa
+    <kbd>WASD</kbd> move · <kbd>Space</kbd> jump · <kbd>Shift</kbd> sprint<br/>
+    <kbd>1/2/3</kbd> weapons · <kbd>Left click</kbd> shoot · <kbd>Right click</kbd> aim<br/>
+    <kbd>R</kbd> reload · <kbd>V</kbd> 1st/3rd person · <kbd>Esc</kbd> pause
   </div>
-  <div id="ammo"><div class="wname" id="wname">Fusil</div><div class="mag"><span id="magn">30</span><span style="font-size:20px;opacity:.6">/∞</span></div><div class="reload" id="reloadTxt"></div></div>
+  <div id="ammo"><div class="wname" id="wname">Rifle</div><div class="mag"><span id="magn">30</span><span style="font-size:20px;opacity:.6">/∞</span></div><div class="reload" id="reloadTxt"></div></div>
   <div id="toolbar"></div>
 </div>
 
 <div id="menu">
   <h1>ARENA<span>FIGHT</span></h1>
-  <p class="sub">Shooter de arena — elige tu personaje</p>
+  <p class="sub">Arena shooter — pick your character</p>
   <div id="charArea">
     <div id="charList"></div>
     <div id="previewBox"></div>
   </div>
-  <input id="nameInput" maxlength="12" placeholder="Tu nombre" />
+  <input id="nameInput" maxlength="12" placeholder="Your name" />
   <div id="mapSel">
-    <button class="mapbtn active" data-map="desert">🌵 Pueblo del Desierto</button>
-    <button class="mapbtn" data-map="city">🏙️ Pisos Picados</button>
+    <button class="mapbtn active" data-map="desert">🌵 Desert Village</button>
+    <button class="mapbtn" data-map="city">🏙️ Tilted Towers</button>
   </div>
-  <button id="playBtn">JUGAR (vs bots)</button>
+  <button id="playBtn">PLAY (vs bots)</button>
   <div id="mpArea">
-    <div class="mptitle">🌐 Jugar online con un amigo</div>
+    <div class="mptitle">🌐 Play online with friends</div>
     <div class="mprow">
-      <button id="mpHost" class="mpbtn">Crear partida</button>
-      <span style="color:#6f8096">o</span>
-      <input id="mpCode" maxlength="5" placeholder="CÓDIGO" />
-      <button id="mpJoin" class="mpbtn">Unirse</button>
+      <button id="mpHost" class="mpbtn">Host match</button>
+      <span style="color:#6f8096">or</span>
+      <input id="mpCode" maxlength="5" placeholder="CODE" />
+      <button id="mpJoin" class="mpbtn">Join</button>
     </div>
     <div id="mpStatus"></div>
   </div>
   <div id="controls">
-    <div><span class="k">WASD</span> moverte</div><div><span class="k">Ratón</span> mirar</div><div><span class="k">Espacio</span> saltar</div>
-    <div><span class="k">Shift</span> correr</div><div><span class="k">1</span> Fusil</div><div><span class="k">2</span> Escopeta</div>
-    <div><span class="k">3</span> Sniper</div><div><span class="k">Clic izq</span> disparar</div><div><span class="k">Clic der</span> apuntar</div>
-    <div><span class="k">R</span> recargar</div><div><span class="k">V</span> 3ª persona</div><div><span class="k">Esc</span> pausa</div>
+    <div><span class="k">WASD</span> move</div><div><span class="k">Mouse</span> look</div><div><span class="k">Space</span> jump</div>
+    <div><span class="k">Shift</span> sprint</div><div><span class="k">1</span> Rifle</div><div><span class="k">2</span> Shotgun</div>
+    <div><span class="k">3</span> Sniper</div><div><span class="k">Left click</span> shoot</div><div><span class="k">Right click</span> aim</div>
+    <div><span class="k">R</span> reload</div><div><span class="k">V</span> 3rd person</div><div><span class="k">Esc</span> pause</div>
   </div>
-  <p id="paused">Haz clic en JUGAR para capturar el ratón. Pulsa <kbd>Esc</kbd> para pausar.</p>
+  <p id="paused">Click PLAY to capture the mouse. Press <kbd>Esc</kbd> to pause.</p>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -185,8 +185,8 @@
   let ARENA = 44;       // medio ancho interior (cambia por mapa)
 
   const WEAPONS = {
-    rifle:   { name: 'Fusil',    auto: true,  dmg: 28, rate: 0.11, pellets: 1, spread: 0.012, adsFov: 58, mag: 30, reload: 2.0, kick: 0.012 },
-    shotgun: { name: 'Escopeta', auto: false, dmg: 13, rate: 0.75, pellets: 9, spread: 0.075, adsFov: 66, mag: 7,  reload: 2.6, kick: 0.05 },
+    rifle:   { name: 'Rifle',    auto: true,  dmg: 28, rate: 0.11, pellets: 1, spread: 0.012, adsFov: 58, mag: 30, reload: 2.0, kick: 0.012 },
+    shotgun: { name: 'Shotgun', auto: false, dmg: 13, rate: 0.75, pellets: 9, spread: 0.075, adsFov: 66, mag: 7,  reload: 2.6, kick: 0.05 },
     sniper:  { name: 'Sniper',   auto: false, dmg: 125, rate: 1.1, pellets: 1, spread: 0.0,   adsFov: 28, mag: 5,  reload: 3.0, kick: 0.06 },
   };
 
@@ -397,7 +397,7 @@
     { id: 'doge', emoji: '🐕', name: 'Doge', desc: 'Much wow' },
     { id: 'troll', emoji: '😈', name: 'Troll', desc: 'Problem?' },
     { id: 'wojak', emoji: '😐', name: 'Wojak', desc: 'I know that feel' },
-    { id: 'chad', emoji: '😎', name: 'Alon', desc: 'Gorra y gafas' },
+    { id: 'chad', emoji: '😎', name: 'Alon', desc: 'Cap and shades' },
   ];
   let selectedChar = 'stick';
   let selectedMap = 'desert';
@@ -1586,7 +1586,7 @@
   }
   function updateAmmo() {
     document.getElementById('magn').textContent = ammo[curWeapon].mag;
-    document.getElementById('reloadTxt').textContent = reloading ? 'RECARGANDO…' : '';
+    document.getElementById('reloadTxt').textContent = reloading ? 'RELOADING…' : '';
   }
   function reload() {
     const st = ammo[curWeapon], w = WEAPONS[curWeapon];
@@ -1890,7 +1890,7 @@
   // ---------- UI ----------
   const toolbar = document.getElementById('toolbar');
   const TOOLKEY = { 1: 'rifle', 2: 'shotgun', 3: 'sniper' };
-  const WLABEL = { rifle: 'Fusil', shotgun: 'Escopeta', sniper: 'Sniper' };
+  const WLABEL = { rifle: 'Rifle', shotgun: 'Shotgun', sniper: 'Sniper' };
   const slots = {};
   const DMGTXT = { rifle: '28 dmg', shotgun: '13×9', sniper: '125 dmg' };
   for (let i = 1; i <= 3; i++) {
@@ -1959,7 +1959,7 @@
       glbChar.stick = build('wood_', /display_base/);
       glbChar.chad = build('chibi_', null);
       refreshModels();
-    }, undefined, function (e) { console.warn('No se pudo cargar el .glb:', e); });
+    }, undefined, function (e) { console.warn('Could not load the .glb:', e); });
   })();
 
   // ---------- Red (multijugador P2P, topología en estrella) ----------
@@ -1992,7 +1992,7 @@
       '<div class="row' + ((e.id === net.id || (!net.active && e.id === 'me')) ? ' me' : '') + '"><span>' + (CHAR_EMOJI[e.ch] || '') + ' ' + esc(e.name) + '</span><b>' + e.kills + '</b></div>').join('');
   }
   function showEndScreen(winner, list) {
-    document.getElementById('endTitle').textContent = winner ? ('🏆 Gana ' + esc(winner.name) + ' — ' + winner.kills) : '¡Fin de la partida!';
+    document.getElementById('endTitle').textContent = winner ? ('🏆 ' + esc(winner.name) + ' wins — ' + winner.kills) : 'Match over!';
     document.getElementById('endBoard').innerHTML = (list || []).slice(0, 8).map((e, i) =>
       '<div class="row' + (i === 0 ? ' first' : '') + '"><span>' + (i + 1) + '. ' + (CHAR_EMOJI[e.ch] || '') + ' ' + esc(e.name) + '</span><span>' + e.kills + '</span></div>').join('');
     document.getElementById('endscreen').style.display = 'flex';
@@ -2062,7 +2062,7 @@
       const r = remotes[fromId] || makeRemotePlayer(fromId, d.ch);
       r.target.set(d.x, d.y, d.z); r.yaw = d.yaw; r.hp = d.hp; r.w = d.w || 'rifle'; r.dead = !!d.dd;
       if (net.host) {
-        board[fromId] = board[fromId] || { name: d.nm || 'Jugador', ch: d.ch, kills: 0 };
+        board[fromId] = board[fromId] || { name: d.nm || 'Player', ch: d.ch, kills: 0 };
         board[fromId].name = d.nm || board[fromId].name; board[fromId].ch = d.ch;
         d.from = sender; net.broadcast(d, sender);
       }
@@ -2094,7 +2094,7 @@
     c.on('close', () => {
       const id = c._afid;
       if (net.host) { delete net.conns[id]; removeRemotePlayer(id); net.broadcast({ t: 'leave', id: id }); }
-      else { mpStatus('⚠️ Anfitrión desconectado. Vuelve a unirte.'); net.active = false; }
+      else { mpStatus('⚠️ Host disconnected. Join again.'); net.active = false; }
     });
     c.on('error', () => {});
   }
@@ -2125,27 +2125,27 @@
   }
   // Anfitrión: crea la sala y se mantiene abierta aceptando a quien se una (ahora y más tarde).
   async function startHost() {
-    if (typeof Peer === 'undefined') { mpStatus('No se pudo cargar la red (sin conexión).'); return; }
-    net.host = true; net.id = 'host'; mpStatus('Preparando servidores…');
+    if (typeof Peer === 'undefined') { mpStatus('Could not load networking (offline).'); return; }
+    net.host = true; net.id = 'host'; mpStatus('Setting up servers…');
     const ice = await getIceServers();
     net.peer = new Peer(randomCode(), { config: { iceServers: ice } });
     net.peer.on('open', id => {
       const code = id.replace('af-', '');
-      document.getElementById('mpReadyMsg').innerHTML = 'Sala creada. Código: <b style="color:#ffb13b;font-size:20px">' + code + '</b><br/>Pulsa ENTRAR. Tus amigos pueden unirse cuando quieran (y volver a entrar si se salen).';
+      document.getElementById('mpReadyMsg').innerHTML = 'Room created. Code: <b style="color:#ffb13b;font-size:20px">' + code + '</b><br/>Press ENTER. Your friends can join any time (and rejoin if they leave).';
       document.getElementById('mpReady').style.display = 'flex';
-      mpStatus('Código: <b style="color:#ffb13b;font-size:20px">' + code + '</b> — compártelo.');
+      mpStatus('Code: <b style="color:#ffb13b;font-size:20px">' + code + '</b> — share it.');
     });
     net.peer.on('connection', c => {
       c._afid = c.peer; net.conns[c.peer] = c; attachConnHandlers(c);
       const welcome = () => c.send({ t: 'welcome', you: c.peer, map: currentMap });
       if (c.open) welcome(); else c.on('open', welcome);
     });
-    net.peer.on('error', e => mpStatus('Error de red: ' + e.type));
+    net.peer.on('error', e => mpStatus('Network error: ' + e.type));
   }
   // Invitado: entra al juego YA (gesto del clic -> captura ratón) y conecta en segundo plano.
   async function startJoin(codeRaw) {
-    if (typeof Peer === 'undefined') { mpStatus('No se pudo cargar la red (sin conexión).'); return; }
-    if (!codeRaw.trim()) { mpStatus('Escribe el código de la sala.'); return; }
+    if (typeof Peer === 'undefined') { mpStatus('Could not load networking (offline).'); return; }
+    if (!codeRaw.trim()) { mpStatus('Type the room code.'); return; }
     net.host = false; net.active = true; player.inGame = true;
     startPlay(selectedMap);
     const ice = await getIceServers();
@@ -2164,7 +2164,7 @@
     clearRemotes();
     enemies.forEach(e => { e.visible = !net.active; });
     if (!net.active) enemies.forEach(respawnEnemy);
-    playerName = (document.getElementById('nameInput').value || '').trim().slice(0, 12) || ('Jugador' + (10 + (Math.random() * 89 | 0)));
+    playerName = (document.getElementById('nameInput').value || '').trim().slice(0, 12) || ('Player' + (10 + (Math.random() * 89 | 0)));
     score = 0; deaths = 0; document.getElementById('score').textContent = 0;
     for (const k in board) delete board[k]; boardList = []; matchEnded = false; matchStart = performance.now(); matchTimeLeft = match.limitSec;
     document.getElementById('endscreen').style.display = 'none';
@@ -2195,7 +2195,7 @@
     if (running) { menu.style.display = 'none'; document.getElementById('mpReady').style.display = 'none'; }
     else {
       firing = false; ads = false;
-      if (net.active && player.inGame) { document.getElementById('mpReadyMsg').textContent = 'Pausa. Pulsa ENTRAR para seguir.'; document.getElementById('mpReady').style.display = 'flex'; }
+      if (net.active && player.inGame) { document.getElementById('mpReadyMsg').textContent = 'Paused. Press ENTER to continue.'; document.getElementById('mpReady').style.display = 'flex'; }
       else menu.style.display = 'flex';
     }
   });
@@ -2218,7 +2218,7 @@
     if (e.code === 'Digit2') setWeapon('shotgun');
     if (e.code === 'Digit3') setWeapon('sniper');
     if (e.code === 'KeyR') reload();
-    if (e.code === 'KeyV') { thirdPerson = !thirdPerson; document.getElementById('viewmode').textContent = 'Vista: ' + (thirdPerson ? '3ª persona' : '1ª persona'); }
+    if (e.code === 'KeyV') { thirdPerson = !thirdPerson; document.getElementById('viewmode').textContent = 'View: ' + (thirdPerson ? '3rd person' : '1st person'); }
   });
   document.addEventListener('keyup', (e) => { keys[e.code] = false; });
   window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
@@ -2259,7 +2259,7 @@
     setTimeout(async () => {
       if (R.mode === 'host') {
         await startHost();
-        const iv = setInterval(() => { if (net.peer && net.peer.open) { clearInterval(iv); window.__botRoomCode = net.peer.id.replace('af-', ''); log('sala ' + window.__botRoomCode);
+        const iv = setInterval(() => { if (net.peer && net.peer.open) { clearInterval(iv); window.__botRoomCode = net.peer.id.replace('af-', ''); log('room ' + window.__botRoomCode);
           net.active = true; player.inGame = true; startPlay(selectedMap); go(); } }, 200);
       } else if (R.mode === 'join') { await startJoin(Q.get('join')); go(); }
       else { net.active = false; player.inGame = false; startPlay(selectedMap); go(); }
@@ -2306,22 +2306,22 @@
       const eye = V(player.pos.x, player.pos.y + EYE, player.pos.z); let best = null, bd = 70;
       const cands = net.active ? Object.values(remotes).filter(r => !r.dead && r.group.visible).map(r => r.group.position) : enemies.filter(e => e.visible).map(e => e.position);
       if (net.active) { R.net.maxRemotes = Math.max(R.net.maxRemotes, cands.length); if (cands.length) R.net.remotesSeen++;
-        R.net.cur = Object.keys(remotes).length; if (R.net.cur > EXPECT - 1) issue('ghost_player', player.pos, R.net.cur + ' remotos');
+        R.net.cur = Object.keys(remotes).length; if (R.net.cur > EXPECT - 1) issue('ghost_player', player.pos, R.net.cur + ' remotes');
         if (R.net.cur < EXPECT - 1 && performance.now() - R.netT0 > 20000) { if (!R.missSince) R.missSince = performance.now(); else if (performance.now() - R.missSince > 10000) { issue('missing_player', player.pos, R.net.cur + '/' + (EXPECT - 1)); R.missSince = 0; } } else R.missSince = 0; }
       for (const p of cands) { const tgt = V(p.x, p.y + 1.8, p.z), d = tgt.distanceTo(eye); if (d > bd) continue;
         ray.set(eye, tgt.clone().sub(eye).normalize()); ray.far = d - 0.5; if (ray.intersectObjects(solids, false).length) continue; best = tgt; bd = d; }
       return best;
     }
     window.__botTick = function (dt) {
-      if (matchEnded && !prevEnded) { R.rounds.push({ n: R.rounds.length + 1, board: JSON.parse(JSON.stringify(boardList)), score, combat: Object.assign({}, R.combat), stairs: { ok: R.stairs.ok, tested: R.stairs.tested }, issues: Object.keys(R.issues).length, errors: R.errors.length }); log('FIN PARTIDA ' + R.rounds.length); }
+      if (matchEnded && !prevEnded) { R.rounds.push({ n: R.rounds.length + 1, board: JSON.parse(JSON.stringify(boardList)), score, combat: Object.assign({}, R.combat), stairs: { ok: R.stairs.ok, tested: R.stairs.tested }, issues: Object.keys(R.issues).length, errors: R.errors.length }); log('MATCH END ' + R.rounds.length); }
       prevEnded = matchEnded;
       // fps
       fpsAcc += dt; fpsN++; fpsT += dt;
       if (fpsT > 2) { const f = fpsN / fpsAcc; R.fps.min = Math.min(R.fps.min, +f.toFixed(1)); R.fps.samples.push(+f.toFixed(1)); if (R.fps.samples.length > 60) R.fps.samples.shift(); if (f < 15) issue('low_fps', player.pos, f.toFixed(0) + 'fps'); fpsAcc = 0; fpsN = 0; fpsT = 0; }
       for (const k of ['KeyW', 'KeyA', 'KeyD', 'KeyS', 'Space']) keys[k] = false;
       firing = false;
-      if (player.dead) { if (!wasDead && performance.now() - aliveAt < 2900 && R.combat.shots === shotsAtSpawn) issue('spawn_killed', player.pos, ((performance.now() - aliveAt) / 1000).toFixed(1) + 's sin disparar (protección fallida)'); if (!wasDead && matchEnded) issue('killed_after_end', player.pos); wasDead = true; return; }
-      if (wasDead) { wasDead = false; aliveAt = performance.now(); shotsAtSpawn = R.combat.shots; R.combat.deaths++; log('muerto'); task = null; prevP = null;
+      if (player.dead) { if (!wasDead && performance.now() - aliveAt < 2900 && R.combat.shots === shotsAtSpawn) issue('spawn_killed', player.pos, ((performance.now() - aliveAt) / 1000).toFixed(1) + 's without shooting (protection failed)'); if (!wasDead && matchEnded) issue('killed_after_end', player.pos); wasDead = true; return; }
+      if (wasDead) { wasDead = false; aliveAt = performance.now(); shotsAtSpawn = R.combat.shots; R.combat.deaths++; log('died'); task = null; prevP = null;
         if (insideSolid(player.pos) || (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 0.5)) issue('bad_spawn', player.pos); }
       if (ammo[curWeapon].mag <= 0 && !reloading) { noAmmoT += dt; if (noAmmoT > 2) { issue('reload_stuck', player.pos, curWeapon); noAmmoT = 0; } } else noAmmoT = 0;
       if (score !== lastScore) { R.combat.kills += Math.max(0, score - lastScore); lastScore = score; }
@@ -2367,9 +2367,9 @@
       // ¿escalera completada?
       if (task.kind === 'stairs') {
         if (((taskT * 4) | 0) !== (((taskT - dt) * 4) | 0) && task.trace.length < 12) task.trace.push([+player.pos.x.toFixed(1), +player.pos.y.toFixed(2), +player.pos.z.toFixed(1), +yaw.toFixed(2), player.dead ? 1 : 0, Object.keys(keys).filter(k => keys[k]).join('+')].join(' '));
-        if (player.pos.y >= task.hi.y - 0.6) { R.stairs.ok++; log('escalera OK hasta y=' + task.hi.y.toFixed(1)); task = null; return; }
+        if (player.pos.y >= task.hi.y - 0.6) { R.stairs.ok++; log('stairs OK up to y=' + task.hi.y.toFixed(1)); task = null; return; }
         if (taskT > 9) { R.stairs.fail.push({ lo: [+task.lo.x.toFixed(1), +task.lo.y.toFixed(1), +task.lo.z.toFixed(1)], hi: [+task.hi.x.toFixed(1), +task.hi.y.toFixed(1), +task.hi.z.toFixed(1)], reached: +player.pos.y.toFixed(1), trace: task.trace });
-          issue('stairs_fail', task.lo, 'llegó a y=' + player.pos.y.toFixed(1) + ' de ' + task.hi.y.toFixed(1)); task = null; return; }
+          issue('stairs_fail', task.lo, 'reached y=' + player.pos.y.toFixed(1) + ' of ' + task.hi.y.toFixed(1)); task = null; return; }
       } else if (dist < 2 || taskT > 30) { task = null; return; }
       face(tgt, dt, 4);
       keys['KeyW'] = true; if (Math.random() < dt * 0.5) keys['Space'] = true; // saltar de vez en cuando (prueba techos) keys['ShiftLeft'] = task.kind === 'roam';
@@ -2386,11 +2386,11 @@
     setInterval(() => {
       const r = R, iss = Object.values(r.issues);
       panel.textContent = 'BOT ' + r.mode + ' ' + (window.__botRoomCode || '') + '  t=' + ((Date.now() - r.started) / 1000 | 0) + 's\n' +
-        'fps min ' + r.fps.min + '  último ' + (r.fps.samples[r.fps.samples.length - 1] || '-') + '\n' +
-        'escaleras ' + r.stairs.ok + '/' + r.stairs.tested + '  atascos ' + r.stuck + '  maxY ' + r.maxY + '\n' +
-        'disparos ' + r.combat.shots + ' impactos ' + r.combat.hits + ' kills ' + r.combat.kills + ' muertes ' + r.combat.deaths + '\n' +
-        (net.active ? 'rivales vistos ' + r.net.maxRemotes + '\n' : '') +
-        'errores JS ' + r.errors.length + '  incidencias ' + iss.length + '\n' + r.log.slice(-5).join('\n');
+        'fps min ' + r.fps.min + '  last ' + (r.fps.samples[r.fps.samples.length - 1] || '-') + '\n' +
+        'stairs ' + r.stairs.ok + '/' + r.stairs.tested + '  stuck ' + r.stuck + '  maxY ' + r.maxY + '\n' +
+        'shots ' + r.combat.shots + ' hits ' + r.combat.hits + ' kills ' + r.combat.kills + ' deaths ' + r.combat.deaths + '\n' +
+        (net.active ? 'rivals seen ' + r.net.maxRemotes + '\n' : '') +
+        'JS errors ' + r.errors.length + '  issues ' + iss.length + '\n' + r.log.slice(-5).join('\n');
     }, 500);
   })();
 })();

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>ArenaFight · Bots de prueba</title>
+<html lang="en"><head><meta charset="utf-8"><title>ArenaFight · Test bots</title>
 <style>
   html, body { margin: 0; height: 100%; background: #0d1520; color: #dce7f2; font: 13px system-ui, sans-serif; }
   #wrap { display: flex; height: 62%; gap: 4px; }
@@ -10,18 +10,18 @@
 </style></head>
 <body>
 <div id="wrap"></div>
-<div id="bar"><b id="title"></b> <span id="st">arrancando…</span>
-  <button id="copy">Copiar informe</button>
-  <label>mapa <select id="map"><option>city</option><option>desert</option></select></label>
+<div id="bar"><b id="title"></b> <span id="st">starting…</span>
+  <button id="copy">Copy report</button>
+  <label>map <select id="map"><option>city</option><option>desert</option></select></label>
   <label>bots <select id="n"><option>2</option><option>3</option><option>4</option></select></label>
-  <button id="restart">Reiniciar</button></div>
+  <button id="restart">Restart</button></div>
 <pre id="out"></pre>
 <script>
   const Q = new URLSearchParams(location.search);
   const map = Q.get('map') || 'city', N = Math.max(2, Math.min(4, +(Q.get('n') || 2))), REJOIN = Q.get('rejoin') !== '0';
   const st = document.getElementById('st'), out = document.getElementById('out'), wrap = document.getElementById('wrap');
   document.getElementById('map').value = map; document.getElementById('n').value = String(N);
-  document.getElementById('title').textContent = N + ' bots online (anfitrión + ' + (N - 1) + ' invitados)';
+  document.getElementById('title').textContent = N + ' bots online (host + ' + (N - 1) + ' guests)';
   document.getElementById('restart').onclick = () => { location.search = '?map=' + document.getElementById('map').value + '&n=' + document.getElementById('n').value; };
   const F = [];
   for (let i = 0; i < N; i++) { const f = document.createElement('iframe'); wrap.appendChild(f); F.push(f); }
@@ -29,7 +29,7 @@
   const joinSrc = (i, r) => 'index.html?bot=1&join=' + window.__code + '&map=' + map + '&n=' + N + '&r=' + (r || 0) + '_' + i;
   const iv = setInterval(() => {
     const code = F[0].contentWindow && F[0].contentWindow.__botRoomCode;
-    if (code) { clearInterval(iv); window.__code = code; st.textContent = 'sala ' + code; F.slice(1).forEach((f, i) => setTimeout(() => { f.src = joinSrc(i + 1); }, 1500 * i)); }
+    if (code) { clearInterval(iv); window.__code = code; st.textContent = 'room ' + code; F.slice(1).forEach((f, i) => setTimeout(() => { f.src = joinSrc(i + 1); }, 1500 * i)); }
   }, 500);
   // prueba de reconexión: cada 2 partidas del anfitrión, el último invitado se sale y vuelve a entrar
   let lastRejoin = 0; window.__rejoins = 0;
@@ -37,7 +37,7 @@
     const ra = F[0].contentWindow && F[0].contentWindow.__botReport ? F[0].contentWindow.__botReport() : null;
     if (!ra || !window.__code || !REJOIN) return;
     const n = (ra.rounds || []).length;
-    if (n >= lastRejoin + 2) { lastRejoin = n; window.__rejoins++; st.textContent = 'sala ' + window.__code + ' · reconexión ' + window.__rejoins; F[N - 1].src = joinSrc(N - 1, window.__rejoins); }
+    if (n >= lastRejoin + 2) { lastRejoin = n; window.__rejoins++; st.textContent = 'room ' + window.__code + ' · rejoin ' + window.__rejoins; F[N - 1].src = joinSrc(N - 1, window.__rejoins); }
   }, 2000);
   function report() {
     const r = {};
@@ -46,10 +46,10 @@
   }
   setInterval(() => {
     const r = report(), lines = [];
-    for (const k in r) { const x = r[k]; if (!x) { lines.push(k + ': (sin datos)'); continue; }
+    for (const k in r) { const x = r[k]; if (!x) { lines.push(k + ': (no data)'); continue; }
       const iss = Object.values(x.issues).sort((a, b) => b.n - a.n);
-      lines.push(`== ${k} ==  partidas ${(x.rounds || []).length} | fps min ${x.fps.min} | escaleras ${x.stairs.ok}/${x.stairs.tested} | disparos ${x.combat.shots} impactos ${x.combat.hits} kills ${x.combat.kills} muertes ${x.combat.deaths} | rivales ${x.net.cur || 0}/${N - 1} | errores ${x.errors.length}`);
-      for (const i of iss.slice(0, 12)) lines.push(`  [${i.kind}] x${i.n} en ${i.x},${i.y},${i.z} ${i.extra}`);
+      lines.push(`== ${k} ==  matches ${(x.rounds || []).length} | fps min ${x.fps.min} | stairs ${x.stairs.ok}/${x.stairs.tested} | shots ${x.combat.shots} hits ${x.combat.hits} kills ${x.combat.kills} deaths ${x.combat.deaths} | rivals ${x.net.cur || 0}/${N - 1} | errors ${x.errors.length}`);
+      for (const i of iss.slice(0, 12)) lines.push(`  [${i.kind}] x${i.n} at ${i.x},${i.y},${i.z} ${i.extra}`);
       for (const e of x.errors.slice(-5)) lines.push('  ERROR ' + e);
     }
     out.textContent = lines.join('\n');
