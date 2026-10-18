@@ -374,6 +374,7 @@
       addLimb(g, -0.28, 0.5, 0, 0.15, 1.1, skin);
       addLimb(g, 0.28, 0.5, 0, 0.15, 1.1, skin);
     }
+    g.scale.setScalar(0.8); // personajes un poco más pequeños
     return g;
   }
   const CHARS = [
@@ -747,7 +748,7 @@
         P(s0, w0, yb, yb + fh, mat); P(w1, s1, yb, yb + fh, mat);
         const sp = o.openSpan && [Math.min(o.openSpan[0], o.openSpan[1]), Math.max(o.openSpan[0], o.openSpan[1])];
         const inSpan = !sp || (w0 >= sp[0] + 0.3 && w1 <= sp[1] - 0.3); // el paso tiene que caber entero
-        const door = i === dIdx || arch || (openAll && inSpan), dTop = arch ? fh - 0.8 - winW / 2 : 3.4;
+        const door = i === dIdx || arch || (openAll && inSpan), dTop = arch ? Math.max(2.95, fh - 0.8 - winW / 2) : 3.4; // siempre cabe el jugador (2.7)
         if (door) P(w0, w1, yb + dTop, yb + fh, band);
         else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + fh, band);
           winCols.push(ax === 'x' ? collider((w0 + w1) / 2, yb + (sill + head) / 2, fixed, w1 - w0, head - sill, t) : collider(fixed, yb + (sill + head) / 2, (w0 + w1) / 2, t, head - sill, w1 - w0)); }
@@ -757,20 +758,20 @@
         }
         const fy0 = door ? yb : yb + sill, fy1 = door ? yb + 3.4 : yb + head, ft = t + 0.14, fm = o.frame || M.white;
         const F = (p0, p1, y0, y1) => ax === 'x' ? tbox(p0, y0, fixed - ft / 2, p1, y1, fixed + ft / 2, fm, false) : tbox(fixed - ft / 2, y0, p0, fixed + ft / 2, y1, p1, fm, false);
-        F(w0 - 0.14, w0, fy0, fy1); F(w1, w1 + 0.14, fy0, fy1); F(w0 - 0.14, w1 + 0.14, fy1, fy1 + 0.14);
-        if (!door) { F(w0 - 0.2, w1 + 0.2, fy0 - 0.12, fy0); F(c - 0.05, c + 0.05, fy0, fy1); }
+        F(w0 - 0.14, w0 + 0.03, fy0, fy1 - 0.03); F(w1 - 0.03, w1 + 0.14, fy0, fy1 - 0.03); F(w0 - 0.14, w1 + 0.14, fy1 - 0.03, fy1 + 0.14);
+        if (!door) { F(w0 - 0.2, w1 + 0.2, fy0 - 0.12, fy0 + 0.03); F(c - 0.05, c + 0.05, fy0 + 0.03, fy1 - 0.03); }
       }
     }
     const doors = o.doors || '';
     for (let f = 0; f < floors; f++) {
       const yb = f * fh, g = f === 0, bm = g && o.baseMat;
-      side('x', z0, x0, x1, yb, g && doors.includes('N'), bm || matNS, g, 'N');
-      side('x', z1, x0, x1, yb, g && doors.includes('S'), bm || matNS, g, 'S');
+      side('x', z0, x0 - t / 2 + 0.01, x1 + t / 2 - 0.01, yb, g && doors.includes('N'), bm || matNS, g, 'N');
+      side('x', z1, x0 - t / 2 + 0.01, x1 + t / 2 - 0.01, yb, g && doors.includes('S'), bm || matNS, g, 'S');
       side('z', x0, z0, z1, yb, g && doors.includes('W'), bm || matEW, g, 'W');
       side('z', x1, z0, z1, yb, g && doors.includes('E'), bm || matEW, g, 'E');
     }
     if (o.corner) for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) tbox(cx - 0.45, 0, cz - 0.45, cx + 0.45, floors * fh + 0.3, cz + 0.45, o.corner, false);
-    for (let f = 1; f < floors; f++) { const y0 = f * fh - 0.22, y1 = f * fh + 0.02, e = t / 2 + 0.12; // líneas de forjado (solo el borde de fachada)
+    for (let f = 1; f < floors; f++) { const y0 = f * fh - 0.22, y1 = f * fh + 0.02, e = t / 2 + 0.07; // líneas de forjado (solo el borde de fachada)
       tbox(x0 - 0.12, y0, z0 - 0.12, x1 + 0.12, y1, z0 + e - 0.12, band, false); tbox(x0 - 0.12, y0, z1 - e + 0.12, x1 + 0.12, y1, z1 + 0.12, band, false);
       tbox(x0 - 0.12, y0, z0, x0 + e - 0.12, y1, z1, band, false); tbox(x1 - e + 0.12, y0, z0, x1 + 0.12, y1, z1, band, false); }
     tbox(x0 + t / 2, 0, z0 + t / 2, x1 - t / 2, 0.04, z1 - t / 2, M.wood, false);
@@ -794,7 +795,7 @@
       const ph = o.parapetH || 0.8;
       const sk = o.skip || '';
       if (!sk.includes('N')) tbox(x0 - 0.15, ry, z0 - 0.15, x1 + 0.15, ry + ph, z0 + 0.3, pm); if (!sk.includes('S')) tbox(x0 - 0.15, ry, z1 - 0.3, x1 + 0.15, ry + ph, z1 + 0.15, pm);
-      if (!sk.includes('W')) tbox(x0 - 0.15, ry, z0, x0 + 0.3, ry + ph, z1, pm); if (!sk.includes('E')) tbox(x1 - 0.3, ry, z0, x1 + 0.15, ry + ph, z1, pm);
+      if (!sk.includes('W')) tbox(x0 - 0.15, ry, z0 + 0.3, x0 + 0.3, ry + ph, z1 - 0.3, pm); if (!sk.includes('E')) tbox(x1 - 0.3, ry, z0 + 0.3, x1 + 0.15, ry + ph, z1 - 0.3, pm);
     }
     const nAC = o.ac === undefined ? Math.min(3, Math.floor(W * D / 70)) : o.ac;
     for (let k = 0; k < nAC; k++) {
@@ -840,6 +841,10 @@
     // belfry con arcos
     const p = 1.1, bh = 4.4;
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const px = cx + sx * (s / 2 - p / 2), pz = cz + sz * (s / 2 - p / 2); tbox(px - p / 2, top + 0.5, pz - p / 2, px + p / 2, top + 0.5 + bh, pz + p / 2, M.cream); }
+    // barandilla maciza entre pilares: se puede disparar por encima pero no caerse del campanario
+    { const y0 = top + 0.5, y1 = top + 1.7, e = 0.35, h = s / 2;
+      tbox(cx - h + p, y0, cz - h, cx + h - p, y1, cz - h + e, M.cream); tbox(cx - h + p, y0, cz + h - e, cx + h - p, y1, cz + h, M.cream);
+      tbox(cx - h, y0, cz - h + p, cx - h + e, y1, cz + h - p, M.cream); tbox(cx + h - e, y0, cz - h + p, cx + h, y1, cz + h - p, M.cream); }
     const ar = (s - 2 * p) / 2;
     for (const [dx, dz, alongX] of [[0, -s / 2 + 0.3, true], [0, s / 2 - 0.3, true], [-s / 2 + 0.3, 0, false], [s / 2 - 0.3, 0, false]]) {
       tArch(cx + dx, top + 0.5 + bh - ar - 0.2, cz + dz, ar, alongX, M.trim);
@@ -1628,7 +1633,7 @@
         raw.rotation.x = -Math.PI / 2; // el modelo viene Z-up -> lo ponemos de pie (Y-up)
         raw.updateMatrixWorld(true);
         let box = new T.Box3().setFromObject(raw); const size = box.getSize(new T.Vector3());
-        raw.scale.setScalar(3.0 / (size.y || 1));
+        raw.scale.setScalar(2.4 / (size.y || 1)); // misma altura que los procedurales escalados
         raw.updateMatrixWorld(true);
         box = new T.Box3().setFromObject(raw); const c = box.getCenter(new T.Vector3());
         raw.position.x -= c.x; raw.position.z -= c.z; raw.position.y -= box.min.y;
@@ -1718,7 +1723,7 @@
     bar.add(new T.Mesh(new T.PlaneGeometry(2, 0.26), new T.MeshBasicMaterial({ color: 0x3a1414 })));
     const fgGeo = new T.PlaneGeometry(2, 0.26); fgGeo.translate(1, 0, 0);
     const fg = new T.Mesh(fgGeo, new T.MeshBasicMaterial({ color: 0x49d06a })); fg.position.set(-1, 0, 0.01); bar.add(fg);
-    bar.position.y = 3.7; g.add(bar);
+    bar.position.y = 3.1; g.add(bar);
     scene.add(g);
     const r = { group: g, meshes, meshSet, headSet, target: new T.Vector3(), yaw: 0, hp: MAXHP, dead: false, char: charId, w: 'rifle', bar: bar, barFill: fg };
     remotes[id] = r; return r;
@@ -1911,7 +1916,7 @@
       errors: [], issues: {}, stairs: { tested: 0, ok: 0, fail: [] }, combat: { shots: 0, hits: 0, kills: 0, deaths: 0 },
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
-    match.limitSec = +(Q.get('secs') || 90); R.rounds = [];
+    match.limitSec = +(Q.get('secs') || 60); R.rounds = [];
     window.__botDbg = { solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
     const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
     const issue = (kind, pos, extra) => {
@@ -1966,12 +1971,12 @@
     let noAmmoT = 0, prevEnded = false, prevP = null;
     let stairIdx = R.mode === 'join' ? 27 : 0, task = null, taskT = 0, lastPos = null, stuckT = 0, moveCheckT = 0, unstickT = 0, strafe = 1, strafeT = 0, fpsAcc = 0, fpsN = 0, fpsT = 0, wasDead = false, lastScore = 0, weaponT = 8;
     function newTask() {
-      taskT = 0;
+      taskT = 0; unstickT = 0; stuckT = 0; lastPos = null; moveCheckT = 0;
       if (Math.random() < 0.6 && ramps.length) {   // prueba de escalera (todas, por turnos): ponerse al pie y subir
         const r = ramps[(stairIdx++) % ramps.length], e = rampEnds(r), dir = e.hi.clone().sub(e.lo).setY(0).normalize();
         const start = e.lo.clone().addScaledVector(dir, -0.7);
         prevP = null; player.pos.set(start.x, e.lo.y + 0.05, start.z); player.vel.set(0, 0, 0); yaw = Math.atan2(-dir.x, -dir.z); pitch = 0;
-        R.stairs.tested++; task = { kind: 'stairs', lo: e.lo, hi: e.hi, target: e.hi.clone().addScaledVector(dir, 1.2), ramp: r };
+        R.stairs.tested++; task = { kind: 'stairs', lo: e.lo, hi: e.hi, target: e.hi.clone().addScaledVector(dir, 1.2), ramp: r, trace: [] };
       } else task = { kind: 'roam', target: randomGroundPoint() };
     }
     function face(target, dt, rate) {
@@ -1984,7 +1989,7 @@
       const eye = V(player.pos.x, player.pos.y + EYE, player.pos.z); let best = null, bd = 70;
       const cands = net.active ? Object.values(remotes).filter(r => !r.dead && r.group.visible).map(r => r.group.position) : enemies.filter(e => e.visible).map(e => e.position);
       if (net.active) { R.net.maxRemotes = Math.max(R.net.maxRemotes, cands.length); if (cands.length) R.net.remotesSeen++; }
-      for (const p of cands) { const tgt = V(p.x, p.y + 2.2, p.z), d = tgt.distanceTo(eye); if (d > bd) continue;
+      for (const p of cands) { const tgt = V(p.x, p.y + 1.8, p.z), d = tgt.distanceTo(eye); if (d > bd) continue;
         ray.set(eye, tgt.clone().sub(eye).normalize()); ray.far = d - 0.5; if (ray.intersectObjects(solids, false).length) continue; best = tgt; bd = d; }
       return best;
     }
@@ -2034,8 +2039,9 @@
       const tgt = task.target, dist = Math.hypot(tgt.x - player.pos.x, tgt.z - player.pos.z);
       // ¿escalera completada?
       if (task.kind === 'stairs') {
+        if (((taskT * 4) | 0) !== (((taskT - dt) * 4) | 0) && task.trace.length < 12) task.trace.push([+player.pos.x.toFixed(1), +player.pos.y.toFixed(2), +player.pos.z.toFixed(1), +yaw.toFixed(2), player.dead ? 1 : 0, Object.keys(keys).filter(k => keys[k]).join('+')].join(' '));
         if (player.pos.y >= task.hi.y - 0.6) { R.stairs.ok++; log('escalera OK hasta y=' + task.hi.y.toFixed(1)); task = null; return; }
-        if (taskT > 9) { R.stairs.fail.push({ lo: [+task.lo.x.toFixed(1), +task.lo.y.toFixed(1), +task.lo.z.toFixed(1)], hi: [+task.hi.x.toFixed(1), +task.hi.y.toFixed(1), +task.hi.z.toFixed(1)], reached: +player.pos.y.toFixed(1) });
+        if (taskT > 9) { R.stairs.fail.push({ lo: [+task.lo.x.toFixed(1), +task.lo.y.toFixed(1), +task.lo.z.toFixed(1)], hi: [+task.hi.x.toFixed(1), +task.hi.y.toFixed(1), +task.hi.z.toFixed(1)], reached: +player.pos.y.toFixed(1), trace: task.trace });
           issue('stairs_fail', task.lo, 'llegó a y=' + player.pos.y.toFixed(1) + ' de ' + task.hi.y.toFixed(1)); task = null; return; }
       } else if (dist < 2 || taskT > 30) { task = null; return; }
       face(tgt, dt, 4);
