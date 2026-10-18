@@ -147,7 +147,7 @@
   <input id="nameInput" maxlength="12" placeholder="Tu nombre" />
   <div id="mapSel">
     <button class="mapbtn active" data-map="desert">🏜️ Desierto</button>
-    <button class="mapbtn" data-map="city">🏙️ Ciudad (Tilted)</button>
+    <button class="mapbtn" data-map="city">🏙️ Pisos Picados</button>
   </div>
   <button id="playBtn">JUGAR (vs bots)</button>
   <div id="mpArea">
@@ -171,6 +171,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>
 (function () {
@@ -181,7 +182,7 @@
   const EYE = 2.4, PLAYER_R = 0.6, PLAYER_H = 2.7;
   const GRAVITY = 32, JUMP = 11, WALK = 11, RUN = 17, STEP = 0.7;
   const BASE_FOV = 80;
-  const ARENA = 44;     // medio ancho interior
+  let ARENA = 44;       // medio ancho interior (cambia por mapa)
 
   const WEAPONS = {
     rifle:   { name: 'Fusil',    auto: true,  dmg: 28, rate: 0.11, pellets: 1, spread: 0.012, adsFov: 58, mag: 30, reload: 2.0, kick: 0.012 },
@@ -203,10 +204,18 @@
   const camera = new T.PerspectiveCamera(BASE_FOV, innerWidth / innerHeight, 0.05, 1000);
   camera.rotation.order = 'YXZ';
   scene.add(camera); // para que el viewmodel (hijo de la cámara) se renderice
+  window.__view = (x, y, z, tx2, ty, tz2, fov) => { camera.fov = fov || 70; camera.updateProjectionMatrix(); camera.position.set(x, y, z); camera.lookAt(tx2 || 0, ty || 0, tz2 || 0); renderer.render(scene, camera); };
 
   scene.add(new T.HemisphereLight(0xcfe0ff, 0x24334d, 1.0));
   const sun = new T.DirectionalLight(0xffffff, 0.9);
   sun.position.set(50, 90, 30); scene.add(sun);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -125, right: 125, top: 125, bottom: -125, near: 1, far: 420 });
+  sun.shadow.camera.updateProjectionMatrix();
+  sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05;
+  const hemi = scene.children.find(o => o.isHemisphereLight);
+  const ambient = new T.AmbientLight(0xfff4e0, 0); scene.add(ambient);
 
   // ---------- Helpers ----------
   function cmesh(geo, color, opts) { return new T.Mesh(geo, new T.MeshLambertMaterial(Object.assign({ color: color }, opts || {}))); }
@@ -513,6 +522,334 @@
     col.position.set(x, 0.8, z); mapGroup.add(col); solids.push(col);
   }
 
+  // ===================== PISOS PICADOS (Tilted Towers) calcado del modelo Sketchfab =====================
+  // Medidas reales tomadas del modelo (unidades de modelo, x=este, y=norte). 1 planta = 0.52 u.
+  const TS = 6.5, FH = 0.52 * TS;          // escala modelo->juego, altura de planta (~3.4)
+  const tx = mx => (mx + 0.3) * TS;        // modelo x -> juego x
+  const tz = my => -(my + 5.0) * TS;       // modelo y (norte) -> juego z (norte = -z)
+  let batches = null, TM = null;
+  const UNIT = new T.BoxGeometry(1, 1, 1), COLMAT = new T.MeshBasicMaterial({ visible: false });
+  function canvasTex(size, draw) {
+    const c = document.createElement('canvas'); c.width = c.height = size; draw(c.getContext('2d'), size);
+    const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 4; return t;
+  }
+  function speckle(x, s, n, a) { for (let i = 0; i < n; i++) { const w = Math.random() < 0.5; x.fillStyle = w ? `rgba(255,255,255,${a * Math.random()})` : `rgba(0,0,0,${a * Math.random()})`; x.fillRect(Math.random() * s, Math.random() * s, 1 + Math.random() * 3, 1 + Math.random() * 3); } }
+  function blocksTex(base, rgb, bw, bh, mortar) {
+    return canvasTex(256, (x, s) => {
+      x.fillStyle = mortar; x.fillRect(0, 0, s, s);
+      for (let r = 0; r < s / bh; r++) { const off = (r % 2) * bw / 2; for (let c = -1; c < s / bw + 1; c++) { const v = 22 * (Math.random() - 0.5); x.fillStyle = `rgb(${rgb[0] + v | 0},${rgb[1] + v | 0},${rgb[2] + v | 0})`; x.fillRect(c * bw + off + 2, r * bh + 2, bw - 4, bh - 4); } }
+      speckle(x, s, 700, 0.12);
+    });
+  }
+  function tiltedMats() {
+    if (TM) return TM;
+    const L = t => new T.MeshLambertMaterial({ map: t }), C = c => new T.MeshLambertMaterial({ color: c });
+    TM = {
+      brick: L(blocksTex(0, [146, 72, 52], 42, 16, '#c9bba3')),
+      stone: L(blocksTex(0, [158, 152, 140], 72, 34, '#77726a')),
+      stoneL: L(blocksTex(0, [192, 188, 178], 72, 34, '#8d887d')),
+      tan: L(blocksTex(0, [178, 158, 118], 64, 30, '#7d6c4f')),
+      blue: L(canvasTex(128, (x, s) => { x.fillStyle = '#4b79ba'; x.fillRect(0, 0, s, s); for (let y = 0; y < s; y += 16) { x.fillStyle = 'rgba(255,255,255,.2)'; x.fillRect(0, y, s, 2); x.fillStyle = 'rgba(0,0,0,.18)'; x.fillRect(0, y + 13, s, 3); } speckle(x, s, 200, 0.08); })),
+      trim: C(0xdcd5c5), white: C(0xf0efe9), dark: C(0x2f3136), glass: new T.MeshLambertMaterial({ color: 0x7fa6c4, transparent: true, opacity: 0.45 }),
+      roof: L(canvasTex(128, (x, s) => { x.fillStyle = '#56585d'; x.fillRect(0, 0, s, s); speckle(x, s, 900, 0.18); })),
+      wood: L(canvasTex(128, (x, s) => { for (let i = 0; i < 8; i++) { const v = 20 * (Math.random() - 0.5); x.fillStyle = `rgb(${139 + v | 0},${104 + v | 0},${70 + v | 0})`; x.fillRect(0, i * 16, s, 15); } speckle(x, s, 300, 0.1); })),
+      rock: L(canvasTex(256, (x, s) => { x.fillStyle = '#6f5646'; x.fillRect(0, 0, s, s); for (let i = 0; i < 70; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(40,28,20,.28)' : 'rgba(170,140,115,.22)'; x.fillRect(0, Math.random() * s, s, 3 + Math.random() * 12); } speckle(x, s, 900, 0.2); })),
+      grass: L(canvasTex(128, (x, s) => { x.fillStyle = '#5d8c38'; x.fillRect(0, 0, s, s); speckle(x, s, 1500, 0.22); })),
+      paving: L(canvasTex(256, (x, s) => { x.fillStyle = '#9c8f76'; x.fillRect(0, 0, s, s); speckle(x, s, 1200, 0.14); x.fillStyle = 'rgba(60,52,40,.45)'; for (let i = 0; i <= s; i += 64) { x.fillRect(i, 0, 2, s); x.fillRect(0, i, s, 2); } })),
+      asphalt: L(canvasTex(128, (x, s) => { x.fillStyle = '#4a494c'; x.fillRect(0, 0, s, s); speckle(x, s, 1200, 0.15); })),
+      tile: C(0x8a4535), slate: C(0x6d717a), red: C(0xc8392f), yellow: C(0xe2c547), green: C(0x4f8a35), leaf: C(0x3f7a2e), trunk: C(0x6b4a2e)
+    };
+    return TM;
+  }
+  function boxGeoUV(w, h, d, tile) {
+    const g = new T.BoxGeometry(w, h, d), uv = g.attributes.uv, dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+    for (let f = 0; f < 6; f++) for (let i = 0; i < 4; i++) { const k = f * 4 + i; uv.setXY(k, uv.getX(k) * dims[f][0] / tile, uv.getY(k) * dims[f][1] / tile); }
+    return g;
+  }
+  function batchAdd(mat, geo) { if (!batches.has(mat)) batches.set(mat, []); batches.get(mat).push(geo); }
+  function flushBatches() {
+    for (const [mat, geos] of batches) {
+      const merged = T.BufferGeometryUtils.mergeBufferGeometries(geos, false);
+      const mm = new T.Mesh(merged, mat); mm.castShadow = mm.receiveShadow = true;
+      mapGroup.add(mm); geos.forEach(g => g.dispose());
+    }
+    batches = null;
+  }
+  function collider(cx, cy, cz, w, h, d, rot) {
+    const m = new T.Mesh(UNIT, COLMAT); m.scale.set(w, h, d); m.position.set(cx, cy, cz); if (rot) m.rotation.copy(rot);
+    m.userData = { hw: w / 2, hh: h / 2, hd: d / 2 }; mapGroup.add(m); return m;
+  }
+  // caja por esquinas (min/max). solid=true -> colisiona y para las balas
+  function tbox(x0, y0, z0, x1, y1, z1, mat, solid, tile) {
+    const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0), d = Math.abs(z1 - z0);
+    if (w < 0.02 || h < 0.02 || d < 0.02) return;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+    const g = boxGeoUV(w, h, d, tile || 2.4); g.translate(cx, cy, cz); batchAdd(mat, g);
+    if (solid !== false) solids.push(collider(cx, cy, cz, w, h, d));
+  }
+  // rampa/escalera caminable del punto bajo (x0,z0,y0) al alto (x1,z1,y1)
+  function tramp(x0, z0, x1, z1, y0, y1, width, mat) {
+    const dx = x1 - x0, dz = z1 - z0, run = Math.hypot(dx, dz), rise = y1 - y0, L = Math.hypot(run, rise), ang = Math.atan2(rise, run);
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2 - 0.13, cz = (z0 + z1) / 2, e = new T.Euler();
+    let w, d; if (Math.abs(dz) >= Math.abs(dx)) { w = width; d = L; e.x = dz > 0 ? -ang : ang; } else { w = L; d = width; e.z = dx > 0 ? ang : -ang; }
+    const g = boxGeoUV(w, 0.26, d, 1.2); g.applyMatrix4(new T.Matrix4().makeRotationFromEuler(e)); g.translate(cx, cy, cz); batchAdd(mat, g);
+    // peldaños visuales
+    const steps = Math.max(4, Math.round(rise / 0.3));
+    for (let i = 0; i < steps; i++) {
+      const f = (i + 0.5) / steps, px = x0 + dx * f, pz = z0 + dz * f, py = y0 + rise * f;
+      const sg = Math.abs(dz) >= Math.abs(dx) ? boxGeoUV(width, 0.06, run / steps, 1) : boxGeoUV(run / steps, 0.06, width, 1);
+      sg.translate(px, py + 0.02, pz); batchAdd(TM.trim, sg);
+    }
+    ramps.push(collider(cx, cy, cz, w, 0.26, d, e));
+  }
+  // Bloque de edificio entrable de varias plantas: paredes con ventanas reales, forjados con hueco,
+  // escaleras alternas (pozo A/B) hasta la azotea con antepecho.
+  function tblock(o) {
+    const { x0, z0, x1, z1, floors } = o, t = 0.4, M = TM;
+    const band = o.band || o.mat, W = x1 - x0, D = z1 - z0;
+    const winW = 1.6, sill = 1.05, head = 2.55;
+    const matNS = o.matNS || o.mat, matEW = o.matEW || o.mat;
+    function side(ax, fixed, a0, a1, yb, isDoor, mat) {
+      const len = a1 - a0, n = Math.max(1, Math.floor((len - 1.0) / 3.2)), step = len / n, dIdx = isDoor ? Math.floor(n / 2) : -1;
+      const P = (p0, p1, y0, y1, m) => ax === 'x' ? tbox(p0, y0, fixed - t / 2, p1, y1, fixed + t / 2, m) : tbox(fixed - t / 2, y0, p0, fixed + t / 2, y1, p1, m);
+      for (let i = 0; i < n; i++) {
+        const c = a0 + step * (i + 0.5), w0 = c - winW / 2, w1 = c + winW / 2, s0 = a0 + step * i, s1 = a0 + step * (i + 1);
+        P(s0, w0, yb, yb + FH, mat); P(w1, s1, yb, yb + FH, mat);
+        if (i === dIdx) P(w0, w1, yb + 2.75, yb + FH, band);
+        else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + FH, band); }
+        // marco de la ventana/puerta (visual)
+        const fy0 = i === dIdx ? yb : yb + sill, fy1 = i === dIdx ? yb + 2.75 : yb + head, ft = t + 0.14, fm = o.frame || M.white;
+        const F = (p0, p1, y0, y1) => ax === 'x' ? tbox(p0, y0, fixed - ft / 2, p1, y1, fixed + ft / 2, fm, false) : tbox(fixed - ft / 2, y0, p0, fixed + ft / 2, y1, p1, fm, false);
+        F(w0 - 0.14, w0, fy0, fy1); F(w1, w1 + 0.14, fy0, fy1); F(w0 - 0.14, w1 + 0.14, fy1, fy1 + 0.14);
+        if (i !== dIdx) { F(w0 - 0.2, w1 + 0.2, fy0 - 0.12, fy0); F(c - 0.05, c + 0.05, fy0, fy1); }
+      }
+    }
+    const doors = o.doors || '';
+    for (let f = 0; f < floors; f++) {
+      const yb = f * FH, g = f === 0;
+      side('x', z0, x0, x1, yb, g && doors.includes('N'), matNS);
+      side('x', z1, x0, x1, yb, g && doors.includes('S'), matNS);
+      side('z', x0, z0, z1, yb, g && doors.includes('W'), matEW);
+      side('z', x1, z0, z1, yb, g && doors.includes('E'), matEW);
+    }
+    if (o.corner) for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) tbox(cx - 0.45, 0, cz - 0.45, cx + 0.45, floors * FH + 0.3, cz + 0.45, o.corner, false);
+    for (let f = 1; f < floors; f++) tbox(x0 - 0.12, f * FH - 0.22, z0 - 0.12, x1 + 0.12, f * FH + 0.02, z1 + 0.12, band, false); // líneas de forjado
+    tbox(x0 + t / 2, 0, z0 + t / 2, x1 - t / 2, 0.04, z1 - t / 2, M.wood, false);
+    // escaleras y forjados
+    const canStairs = o.stairs !== false && W >= 6.6 && D >= 7.2;
+    const RUN = Math.min(6.4, D - 2 * t - 2.4), wellW = 2.4;
+    const zs = z0 + t + 1.2, ze = zs + RUN;
+    const wells = [[x0 + t, x0 + t + wellW], [x1 - t - wellW, x1 - t]];
+    for (let j = 1; j <= floors; j++) {
+      const y = j * FH, top = j === floors, sm = top ? M.roof : M.wood;
+      if (canStairs) {
+        const [hx0, hx1] = wells[(j - 1) % 2];
+        tbox(x0, y - 0.3, z0, hx0, y, z1, sm); tbox(hx1, y - 0.3, z0, x1, y, z1, sm);
+        tbox(hx0, y - 0.3, z0, hx1, y, zs, sm); tbox(hx0, y - 0.3, ze, hx1, y, z1, sm);
+        tramp((hx0 + hx1) / 2, zs, (hx0 + hx1) / 2, ze, y - FH, y, wellW - 0.2, M.wood);
+      } else tbox(x0, y - 0.3, z0, x1, y, z1, sm);
+    }
+    // azotea: antepecho
+    const ry = floors * FH, pm = o.parapet || band;
+    tbox(x0 - 0.15, ry, z0 - 0.15, x1 + 0.15, ry + 0.8, z0 + 0.3, pm); tbox(x0 - 0.15, ry, z1 - 0.3, x1 + 0.15, ry + 0.8, z1 + 0.15, pm);
+    tbox(x0 - 0.15, ry, z0, x0 + 0.3, ry + 0.8, z1, pm); tbox(x1 - 0.3, ry, z0, x1 + 0.15, ry + 0.8, z1, pm);
+  }
+  // rect en coordenadas del MODELO -> bloque
+  function mblock(mx0, mx1, my0, my1, floors, style, doors, extra) {
+    const S = { stone: { mat: TM.stone, band: TM.trim }, tan: { mat: TM.tan, band: TM.trim }, brick: { mat: TM.brick, band: TM.trim },
+      brickT: { mat: TM.brick, band: TM.stone, corner: TM.stone }, blue: { mat: TM.blue, matEW: TM.brick, band: TM.white, parapet: TM.white },
+      light: { mat: TM.stoneL, band: TM.trim } }[style];
+    tblock(Object.assign({ x0: tx(mx0), x1: tx(mx1), z0: tz(my1), z1: tz(my0), floors, doors }, S, extra || {}));
+  }
+  function tTree(x, z, s) {
+    s = s || 1;
+    tbox(x - 0.35 * s, 0, z - 0.35 * s, x + 0.35 * s, 3 * s, z + 0.35 * s, TM.trunk);
+    for (const [ox, oy, oz, r] of [[0, 4.2, 0, 2.2], [1.2, 3.6, 0.5, 1.6], [-1.1, 3.7, -0.4, 1.7], [0.2, 5.4, -0.2, 1.5]]) {
+      const m = new T.Mesh(new T.IcosahedronGeometry(r * s, 1), TM.leaf); m.castShadow = true; m.position.set(x + ox * s, oy * s, z + oz * s); mapGroup.add(m);
+    }
+  }
+  function tBus(x, z, alongX) {
+    const L = 11, W = 3, H = 3.4, c = new T.Euler();
+    if (alongX) tbox(x - L / 2, 0.3, z - W / 2, x + L / 2, H, z + W / 2, TM.white); else tbox(x - W / 2, 0.3, z - L / 2, x + W / 2, H, z + L / 2, TM.white);
+    if (alongX) tbox(x - L / 2 - 0.05, 1.6, z - W / 2 - 0.05, x + L / 2 + 0.05, 2.6, z + W / 2 + 0.05, TM.glass, false); else tbox(x - W / 2 - 0.05, 1.6, z - L / 2 - 0.05, x + W / 2 + 0.05, 2.6, z + L / 2 + 0.05, TM.glass, false);
+  }
+  function tClockTower(cx, cz) {
+    const s = 8.6, M = TM, fl = 7;
+    tblock({ x0: cx - s / 2, x1: cx + s / 2, z0: cz - s / 2, z1: cz + s / 2, floors: fl, mat: M.stoneL, band: M.trim, corner: M.trim, doors: 'S' });
+    const top = fl * FH + 0.8, p = 1.3;
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const px = cx + sx * (s / 2 - p / 2), pz = cz + sz * (s / 2 - p / 2);
+      tbox(px - p / 2, top, pz - p / 2, px + p / 2, top + 5.2, pz + p / 2, M.stoneL);
+    }
+    tbox(cx - s / 2, top + 4.3, cz - s / 2, cx + s / 2, top + 5.2, cz - s / 2 + 0.7, M.trim, false);
+    tbox(cx - s / 2, top + 4.3, cz + s / 2 - 0.7, cx + s / 2, top + 5.2, cz + s / 2, M.trim, false);
+    tbox(cx - s / 2, top + 4.3, cz - s / 2, cx - s / 2 + 0.7, top + 5.2, cz + s / 2, M.trim, false);
+    tbox(cx + s / 2 - 0.7, top + 4.3, cz - s / 2, cx + s / 2, top + 5.2, cz + s / 2, M.trim, false);
+    tbox(cx - s / 2 - 0.4, top + 5.2, cz - s / 2 - 0.4, cx + s / 2 + 0.4, top + 5.9, cz + s / 2 + 0.4, M.trim);
+    const bell = new T.Mesh(new T.CylinderGeometry(0.7, 1.3, 1.8, 12, 1, true), new T.MeshLambertMaterial({ color: 0xb08a3e, side: T.DoubleSide })); bell.position.set(cx, top + 2.6, cz); mapGroup.add(bell);
+    const cone = new T.ConeGeometry(1, 1, 4); cone.rotateY(Math.PI / 4);
+    const roof = new T.Mesh(cone, M.slate); roof.scale.set(s / 1.414 + 0.6, 4.6, s / 1.414 + 0.6); roof.position.set(cx, top + 5.9 + 2.3, cz); mapGroup.add(roof);
+    const ring = new T.MeshLambertMaterial({ color: 0xd4a93c });
+    for (const [dx, dz, ry] of [[0, s / 2 + 0.26, 0], [0, -s / 2 - 0.26, Math.PI], [s / 2 + 0.26, 0, Math.PI / 2], [-s / 2 - 0.26, 0, -Math.PI / 2]]) {
+      const y = (fl - 1) * FH + 1.7;
+      const face = new T.Mesh(new T.CircleGeometry(1.55, 28), new T.MeshBasicMaterial({ map: clockTex })); face.position.set(cx + dx, y, cz + dz); face.rotation.y = ry; mapGroup.add(face);
+      const tor = new T.Mesh(new T.TorusGeometry(1.62, 0.16, 8, 28), ring); tor.position.set(cx + dx * 0.995, y, cz + dz * 0.995); tor.rotation.y = ry; mapGroup.add(tor);
+    }
+  }
+  function tHill(mx0, mx1, my0, my1, mh) {
+    const x0 = tx(mx0), x1 = tx(mx1), z0 = tz(my1), z1 = tz(my0), h = mh * TS;
+    tbox(x0, 0, z0, x1, h, z1, TM.rock, true, 6);
+    tbox(x0 - 0.3, h, z0 - 0.3, x1 + 0.3, h + 0.6, z1 + 0.3, TM.grass, false, 4);
+  }
+  // ---- Terreno del valle (malla con alturas): colinas/acantilados medidos del modelo ----
+  const HILLS = [ // [x0,x1,y0,y1, altura] en unidades de modelo
+    [-11, -1.3, 2.6, 9.9, 3.0], [-14.5, -7.9, -4.5, 2.6, 2.0], [-14.5, -12.4, -17, -4.5, 1.5], [-14.5, -7, -21, -16.3, 1.4],
+    [-7, 4, -21, -18, 1.0], [3.8, 5.5, -21, -15.5, 1.1], [5.5, 8, -21, -8.5, 1.7], [8, 14.5, -21, -8.5, 3.0],
+    [10.5, 14.5, -8.5, 7, 2.6], [8, 14.5, 7, 10.5, 2.2], [-1.3, 8, 8.3, 10.5, 2.0]
+  ];
+  let terrainFn = null;
+  function terrainH(x, z) { return terrainFn ? terrainFn(x, z) : 0; }
+  function hash2(x, y) { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
+  function vnoise(x, y) { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    const a = hash2(ix, iy), b = hash2(ix + 1, iy), c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+  function makeTerrainFn() {
+    return (x, z) => {
+      const mx = x / TS - 0.3, my = -z / TS - 5;
+      let h = 0;
+      for (const [x0, x1, y0, y1, H] of HILLS) {
+        const din = Math.min(mx - x0, x1 - mx, my - y0, y1 - my); // >0 dentro
+        const wob = (vnoise(mx * 1.3, my * 1.3) - 0.5) * 0.7;      // bordes irregulares
+        const k = Math.max(0, Math.min(1, (din + wob) / 0.55));
+        if (k > 0) h = Math.max(h, H * TS * (k * k * (3 - 2 * k)) * (0.85 + 0.3 * vnoise(mx * 0.7 + 9, my * 0.7)));
+      }
+      // fuera del recinto: todo montaña
+      const ex = Math.max(Math.abs(mx) - 14, my - 10.3, -20.5 - my);
+      if (ex > 0) h = Math.max(h, Math.min(1, ex / 0.8) * 4 * TS);
+      return h > 0.05 ? h : -0.08;
+    };
+  }
+  function buildTerrain(floors) {
+    terrainFn = makeTerrainFn();
+    const size = 260, seg = 170, g = new T.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
+    const pos = g.attributes.position, col = new Float32Array(pos.count * 3), n1 = seg + 1, cell = size / seg;
+    for (let i = 0; i < pos.count; i++) pos.setY(i, terrainFn(pos.getX(i), pos.getZ(i)));
+    const HY = i => pos.getY(i);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i), rw = (i / n1) | 0, cl = i % n1;
+      const xl = HY(rw * n1 + Math.max(0, cl - 1)), xr = HY(rw * n1 + Math.min(seg, cl + 1)), zu = HY(Math.max(0, rw - 1) * n1 + cl), zd = HY(Math.min(seg, rw + 1) * n1 + cl);
+      const sl = Math.hypot(xr - xl, zd - zu) / (2 * cell);
+      const n = vnoise(x * 0.35, z * 0.35), strata = 0.5 + 0.5 * Math.sin(y * 0.9 + n * 3);
+      let r, gg, b;
+      if (sl > 0.9) { r = 0.42 + 0.12 * strata + 0.08 * n; gg = 0.32 + 0.09 * strata + 0.06 * n; b = 0.26 + 0.06 * strata; }  // roca
+      else { const t = 0.75 + 0.35 * n; r = 0.33 * t; gg = 0.53 * t; b = 0.22 * t; }                                     // hierba
+      col[i * 3] = r; col[i * 3 + 1] = gg; col[i * 3 + 2] = b;
+    }
+    g.setAttribute('color', new T.BufferAttribute(col, 3)); g.computeVertexNormals();
+    const m = new T.Mesh(g, new T.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = m.castShadow = true; mapGroup.add(m); floors.push(m);
+    // pinos en lo alto de las colinas
+    const pineM = new T.MeshLambertMaterial({ color: 0x2f5a2c }), trunkM = TM.trunk;
+    let placed = 0;
+    for (let i = 0; i < 400 && placed < 34; i++) {
+      const x = (Math.random() * 2 - 1) * 100, z = (Math.random() * 2 - 1) * 105, h = terrainFn(x, z);
+      if (h < 6) continue;
+      const sl = Math.abs(terrainFn(x + 1.5, z) - terrainFn(x - 1.5, z)) + Math.abs(terrainFn(x, z + 1.5) - terrainFn(x, z - 1.5));
+      if (sl > 2.2) continue;
+      const s = 0.9 + Math.random() * 0.8, tr = new T.Mesh(new T.CylinderGeometry(0.35 * s, 0.5 * s, 3 * s, 6), trunkM); tr.position.set(x, h + 1.5 * s, z); mapGroup.add(tr);
+      for (let k = 0; k < 3; k++) { const c = new T.Mesh(new T.ConeGeometry((2.6 - k * 0.6) * s, 3.4 * s, 8), pineM); c.position.set(x, h + (3.5 + k * 2.1) * s, z); mapGroup.add(c); }
+      placed++;
+    }
+  }
+  function tRoad(mx0, mx1, my0, my1, centerLine) {
+    const x0 = tx(mx0), x1 = tx(mx1), z0 = tz(my1), z1 = tz(my0);
+    tbox(x0, 0.0, z0, x1, 0.05, z1, TM.asphalt, false, 4);
+    if (centerLine) {
+      const alongX = (x1 - x0) > (z1 - z0);
+      if (alongX) { const zc = (z0 + z1) / 2; for (let x = x0 + 2; x < x1 - 2; x += 6) tbox(x, 0.05, zc - 0.15, x + 3, 0.08, zc + 0.15, TM.yellow, false); }
+      else { const xc = (x0 + x1) / 2; for (let z = z0 + 2; z < z1 - 2; z += 6) tbox(xc - 0.15, 0.05, z, xc + 0.15, 0.08, z + 3, TM.yellow, false); }
+    }
+  }
+  function tCrosswalk(x, z, alongX, len) { for (let i = -len / 2; i < len / 2; i += 1.6) { if (alongX) tbox(x + i, 0.05, z - 2.5, x + i + 0.8, 0.08, z + 2.5, TM.white, false); else tbox(x - 2.5, 0.05, z + i, x + 2.5, 0.08, z + i + 0.8, TM.white, false); } }
+
+  function buildTilted() {
+    const floors = [];
+    tiltedMats(); batches = new Map();
+    // suelo: pavimento de piedra
+    const gp = new T.PlaneGeometry(600, 600); const uv = gp.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 150, uv.getY(i) * 150);
+    const ground = new T.Mesh(gp, TM.paving); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; mapGroup.add(ground); floors.push(ground);
+    // calles
+    tRoad(-7.8, 12, -0.03, 1.83, true); tRoad(-7.6, -5.55, -17.2, -0.03, true); tRoad(-12.5, 5.1, -10.6, -8.6, true);
+    tRoad(3.1, 5.1, -10.6, -0.03, true); tRoad(3.9, 5.3, 1.83, 7.0, false); tRoad(-2.4, -1.0, -17.0, -10.6, false);
+    tCrosswalk(tx(-6.6), tz(-1.2), true, 12); tCrosswalk(tx(4.1), tz(-1.2), true, 12); tCrosswalk(tx(-3.0), tz(-9.6), false, 12); tCrosswalk(tx(2.5), tz(-9.6), false, 12);
+    // colinas y acantilados que rodean el valle
+    buildTerrain(floors);
+    // ----- edificios (calcados) -----
+    mblock(1.6, 3.1, 3.1, 6.1, 3, 'stone', 'WS');           // A1
+    mblock(-0.57, 1.67, 2.34, 3.93, 3, 'stone', 'SN');      // A2
+    mblock(5.63, 8.0, 5.73, 8.1, 3, 'stone', 'WS');         // B
+    mblock(8.78, 11.06, 2.85, 4.88, 3, 'blue', 'S');        // C (azul)
+    mblock(-4.88, -3.38, -4.1, -1.12, 5, 'stone', 'NW');    // F ala oeste
+    mblock(-2.6, -1.25, -4.1, -1.12, 5, 'stone', 'NE');     // F ala este
+    mblock(-3.38, -2.6, -4.1, -3.25, 5, 'stone', '');       // F barra sur
+    mblock(-0.2, 2.4, -4.1, -1.73, 3, 'stone', 'NS');       // G
+    mblock(-12.16, -10.6, -8.44, -5.56, 3, 'tan', 'E');     // K izq
+    mblock(-9.86, -8.27, -7.25, -5.04, 3, 'tan', 'EW');     // K der
+    mblock(-4.2, -1.93, -6.58, -4.81, 2, 'brick', 'WN');    // L
+    mblock(-0.64, 1.2, -6.85, -6.31, 2, 'stone', 'N', { stairs: false }); // pequeño
+    mblock(-1.32, 2.41, -8.54, -6.85, 6, 'brickT', 'SN');   // M torre de ladrillo
+    mblock(-3.69, -2.6, -12.0, -8.44, 1, 'tan', 'EN');      // O
+    mblock(5.8, 8.1, -7.19, -4.81, 3, 'stone', 'WN');       // Q
+    mblock(-10.6, -8.6, -13.4, -11.35, 5, 'brickT', 'EN');  // R ladrillo
+    mblock(-0.8, 3.26, -15.05, -10.8, 1, 'light', 'NW');    // S nave
+    // lucernarios de la nave
+    for (let i = 0; i < 3; i++) tbox(tx(-0.2) + i * 6.5, FH, tz(-12) - 1.5, tx(-0.2) + i * 6.5 + 4, FH + 0.8, tz(-12) + 1.5, TM.glass, false);
+    // torre del reloj
+    tClockTower(tx(7.03), tz(3.49));
+    // G: tejado a cuatro aguas + terraza con sombrillas
+    {
+      const x0 = tx(-0.2), x1 = tx(2.4), z0 = tz(-1.73), z1 = tz(-4.1), W = x1 - x0, D = z1 - z0, cone = new T.ConeGeometry(1, 1, 4); cone.rotateY(Math.PI / 4);
+      const hip = new T.Mesh(cone, TM.slate); hip.scale.set(W / 1.414 + 0.5, 3.3, D / 1.414 + 0.5); hip.position.set((x0 + x1) / 2, 3 * FH + 0.8 + 1.65, (z0 + z1) / 2); mapGroup.add(hip);
+      for (let i = 0; i < 3; i++) {
+        const ux = tx(2.72), uz = tz(-2.2) + i * 5;
+        tbox(ux - 0.08, 0, uz - 0.08, ux + 0.08, 2.4, uz + 0.08, TM.dark, false);
+        const um = new T.Mesh(new T.ConeGeometry(1.6, 0.7, 10), i % 2 ? TM.white : TM.red); um.position.set(ux, 2.6, uz); mapGroup.add(um);
+        tbox(ux - 0.7, 0, uz - 0.7, ux + 0.7, 0.9, uz + 0.7, TM.white, true);
+      }
+    }
+    // A3: jardinera con fuente en la plaza norte
+    {
+      const x0 = tx(-0.16), x1 = tx(0.92), z0 = tz(5.53), z1 = tz(4.54);
+      tbox(x0, 0, z0, x1, 0.7, z0 + 0.5, TM.trim); tbox(x0, 0, z1 - 0.5, x1, 0.7, z1, TM.trim); tbox(x0, 0, z0, x0 + 0.5, 0.7, z1, TM.trim); tbox(x1 - 0.5, 0, z0, x1, 0.7, z1, TM.trim);
+      tbox(x0 + 0.5, 0, z0 + 0.5, x1 - 0.5, 0.5, z1 - 0.5, TM.grass, false);
+      tbox((x0 + x1) / 2 - 1, 0, (z0 + z1) / 2 - 1, (x0 + x1) / 2 + 1, 1.3, (z0 + z1) / 2 + 1, TM.stoneL);
+    }
+    // parque (I): borde de ladrillo, césped y árboles
+    {
+      const x0 = tx(5.8), x1 = tx(9.46), z0 = tz(-0.44), z1 = tz(-4.03);
+      tbox(x0, 0, z0, x1, 0.12, z1, TM.brick, false);
+      tbox(x0 + 2, 0, z0 + 2, x1 - 2, 0.6, z1 - 2, TM.grass, false);
+      tbox(x0 + 1.6, 0, z0 + 1.6, x1 - 1.6, 0.7, z0 + 2.1, TM.trim); tbox(x0 + 1.6, 0, z1 - 2.1, x1 - 1.6, 0.7, z1 - 1.6, TM.trim);
+      tbox(x0 + 1.6, 0, z0 + 1.6, x0 + 2.1, 0.7, z1 - 1.6, TM.trim); tbox(x1 - 2.1, 0, z0 + 1.6, x1 - 1.6, 0.7, z1 - 1.6, TM.trim);
+      tTree(tx(7.3), tz(-1.6), 1.25); tTree(tx(8.4), tz(-2.4), 1.1); tTree(tx(7.0), tz(-3.0), 1.15); tTree(tx(6.4), tz(-1.0), 0.9);
+    }
+    // plazoleta con árboles y quiosco (T) y marquesina (U)
+    tTree(tx(-3.9), tz(-13.1), 0.8); tTree(tx(-3.0), tz(-14.4), 0.8); tTree(tx(-4.1), tz(-14.6), 0.75);
+    tbox(tx(-3.45) - 1.6, 0, tz(-13.3) - 1.6, tx(-3.45) + 1.6, 2.6, tz(-13.3) + 1.6, TM.wood);
+    tbox(tx(-4.7), 2.8, tz(-16.1), tx(-2.84), 3.1, tz(-17.25), TM.trim, false);
+    for (const [px, pz] of [[tx(-4.6), tz(-16.2)], [tx(-2.95), tz(-16.2)], [tx(-4.6), tz(-17.15)], [tx(-2.95), tz(-17.15)]]) tbox(px - 0.15, 0, pz - 0.15, px + 0.15, 2.8, pz + 0.15, TM.dark);
+    // árboles sueltos (los del modelo)
+    tTree(tx(-5.3), tz(-6.6), 1.0); tTree(tx(4.0), tz(4.6), 1.0); tTree(tx(9.8), tz(-3.6), 0.9); tTree(tx(11.0), tz(-5.5), 1.1); tTree(tx(-9.4), tz(-7.0), 0.7); tTree(tx(-10.8), tz(-6.3), 0.7);
+    // autobuses y coches como en el original
+    tBus(tx(-4.4), tz(1.4), true); tBus(tx(-2.0), tz(1.2), true); tBus(tx(-6.1), tz(-9.6), false); tBus(tx(3.7), tz(-5.5), false);
+    batchesDone();
+    car(tx(-1.0), tz(0.4), Math.PI / 2, 0x3b6fd0); car(tx(6.0), tz(0.7), Math.PI / 2, 0xd0d0d0); car(tx(1.5), tz(-9.8), Math.PI / 2, 0xc33b4b);
+    car(tx(-7.0), tz(-14.0), 0, 0xe0b23a); car(tx(4.5), tz(-8.5), 0, 0x2fa35a); car(tx(-1.6), tz(-15.2), 0, 0x9d4bc2);
+    // límites invisibles
+    for (const [x, z, w, d] of [[0, -ARENA, ARENA * 2, 2], [0, ARENA, ARENA * 2, 2], [-ARENA, 0, 2, ARENA * 2], [ARENA, 0, 2, ARENA * 2]]) solids.push(collider(x, 30, z, w, 60, d));
+    spawnPoint.set(tx(1.5), 0, tz(0.9));
+    return floors;
+  }
+  function batchesDone() { flushBatches(); batches = new Map(); }
+
   // ===== construcción de mapas =====
   function buildDesert() {
     const floors = [];
@@ -569,7 +906,13 @@
   function clearMap() { for (let i = mapGroup.children.length - 1; i >= 0; i--) mapGroup.remove(mapGroup.children[i]); solids.length = 0; ramps.length = 0; }
   function buildMap(kind) {
     currentMap = kind; clearMap();
-    const floors = kind === 'city' ? buildCity() : buildDesert();
+    ARENA = kind === 'city' ? 96 : 44; terrainFn = null;
+    const city = kind === 'city';
+    sun.castShadow = city; sun.intensity = city ? 1.05 : 0.9;
+    if (city) sun.position.set(105, 105, 70); else sun.position.set(50, 90, 30); // como en el original: sol del este
+    if (hemi) hemi.intensity = city ? 0.55 : 1.0;
+    ambient.intensity = city ? 0.22 : 0;
+    const floors = kind === 'city' ? buildTilted() : buildDesert();
     walkables = [...floors, ...solids, ...ramps];
     worldSolids = walkables.slice();
   }
@@ -725,8 +1068,10 @@
       const x = (Math.random() * 2 - 1) * (ARENA - 4), z = (Math.random() * 2 - 1) * (ARENA - 4);
       let ok = true;
       for (const s of solids) {
-        const g = s.geometry.parameters;
-        if (Math.abs(x - s.position.x) < g.width / 2 + 1.2 && Math.abs(z - s.position.z) < g.depth / 2 + 1.2) { ok = false; break; }
+        const b = boxDims(s);
+        if (terrainH(x, z) > 0.3) { ok = false; break; }
+        if (s.position.y - b.hh > 1.5) continue; // forjados altos no bloquean el suelo
+        if (Math.abs(x - s.position.x) < b.hw + 1.2 && Math.abs(z - s.position.z) < b.hd + 1.2) { ok = false; break; }
       }
       if (ok) return new T.Vector3(x, 0, z);
     }
@@ -825,12 +1170,18 @@
     if (y + STEP + 0.05 >= 0) best = Math.max(best, 0);
     return best;
   }
+  // dimensiones (mitades) de una caja sólida: colisionador escalado (userData) o BoxGeometry
+  function boxDims(s) {
+    const u = s.userData;
+    if (u && u.hw !== undefined) return u;
+    const g = s.geometry.parameters; return { hw: g.width / 2, hh: g.height / 2, hd: g.depth / 2 };
+  }
   // empuja una posición fuera de todas las cajas sólidas (colisión circular horizontal)
   function collideCircle(pos, r) {
     let hit = false;
     const yLo = pos.y + 0.2, yHi = pos.y + PLAYER_H - 0.2;
     for (const s of solids) {
-      const g = s.geometry.parameters, hw = g.width / 2, hh = g.height / 2, hd = g.depth / 2;
+      const b = boxDims(s), hw = b.hw, hh = b.hh, hd = b.hd;
       const minY = s.position.y - hh, maxY = s.position.y + hh;
       if (yHi < minY || yLo > maxY) continue;
       const minX = s.position.x - hw, maxX = s.position.x + hw, minZ = s.position.z - hd, maxZ = s.position.z + hd;
@@ -873,8 +1224,11 @@
     if (keys['KeyA']) move.sub(right);
     if (move.lengthSq() > 0) move.normalize().multiplyScalar(ads ? speed * 0.55 : speed);
     if (player.dead) move.set(0, 0, 0);
+    const ox = player.pos.x, oz = player.pos.z;
     player.pos.x += move.x * dt; player.pos.z += move.z * dt;
     resolveWalls();
+    // pendiente del terreno demasiado empinada = pared
+    if (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + STEP + 0.4) { player.pos.x = ox; player.pos.z = oz; }
 
     player.vel.y -= GRAVITY * dt; player.pos.y += player.vel.y * dt;
     const gh = groundHeightAt(player.pos.x, player.pos.y, player.pos.z);
@@ -968,6 +1322,7 @@
       if (e.position.z < -B || e.position.z > B) { ud.dir.z *= -1; e.position.z = Math.max(-B, Math.min(B, e.position.z)); }
       e.position.y = 0;
       if (collideCircle(e.position, 0.8) && !sees) { const a = Math.random() * Math.PI * 2; ud.dir.set(Math.cos(a), 0, Math.sin(a)); ud.t = 1 + Math.random() * 2; }
+      if (terrainFn && terrainH(e.position.x, e.position.z) > 0.4) { e.position.addScaledVector(ud.dir, -ud.speed * dt * 3); ud.dir.multiplyScalar(-1); ud.t = 1.5; }
     }
 
     // tracers
