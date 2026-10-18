@@ -430,7 +430,7 @@
       const face = H(new T.Mesh(new T.CylinderGeometry(R + 0.012, R + 0.012, 0.9, 32, 1, true, -0.85, 1.7),
         new T.MeshBasicMaterial({ map: pillFaceTex, transparent: true, alphaTest: 0.3, polygonOffset: true, polygonOffsetFactor: -2 }))); face.position.y = yS + hh * 0.95;
       // bracitos de alubia a los lados
-      [-1, 1].forEach(k => { const a = addLimb(g, k * (R + 0.08), yS + 0.15, 0, 0.21, 0.6, grn); a.rotation.z = k * 0.25;
+      [-1, 1].forEach(k => { const a = addLimb(g, k * (R + 0.02), yS - 0.42, 0, 0.21, 0.6, grn); a.rotation.z = k * 0.12; // pegados al costado, a media altura de la cápsula
         const tip = cmesh(new T.SphereGeometry(0.23, 12, 10), grn); tip.position.set(0, -0.62, 0.05); tip.scale.set(1, 1.1, 1.15); a.add(tip);
         const top = cmesh(new T.SphereGeometry(0.21, 12, 10), grn); a.add(top); });
       // piernas cortas y pies redondeados
