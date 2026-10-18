@@ -1163,7 +1163,7 @@
     requestAnimationFrame(() => { f.style.transition = 'opacity .4s'; f.style.opacity = '0'; });
   }
   function damagePlayer(d) {
-    if (player.dead) return;
+    if (player.dead || player.protect > 0) return; // protección al aparecer
     player.hp -= d; flashDamage(); updateHealth();
     if (player.hp <= 0) {
       player.hp = 0; player.dead = true; player.respawn = 2.0; deaths++; updateHealth();
@@ -1173,10 +1173,20 @@
       }
     }
   }
+  // punto de aparición lejos de los rivales (evita que te maten nada más aparecer)
+  function safeSpawn() {
+    const foes = net.active ? Object.values(remotes).filter(r => !r.dead).map(r => r.group.position) : enemies.map(e => e.position);
+    let best = null, bd = -1;
+    for (let i = 0; i < 14; i++) {
+      const p = enemySpawnPos(); if (cityBounds && (p.x < cityBounds[0] + 2 || p.x > cityBounds[1] - 2 || p.z < cityBounds[2] + 2 || p.z > cityBounds[3] - 2)) continue;
+      let d = 1e9; for (const f of foes) d = Math.min(d, Math.hypot(f.x - p.x, f.z - p.z));
+      if (d > bd) { bd = d; best = p; }
+    }
+    return best || spawnPoint.clone();
+  }
   function respawnPlayer() {
     player.dead = false; player.hp = MAXHP; player.lastAttacker = null;
-    const sx = spawnPoint.x + (Math.random() - 0.5) * 10, sz = spawnPoint.z + (Math.random() - 0.5) * 10;
-    player.pos.set(sx, 0, sz); player.vel.set(0, 0, 0); updateHealth();
+    player.pos.copy(safeSpawn()); player.vel.set(0, 0, 0); player.protect = 2.0; updateHealth();
   }
 
   // ---------- Avatar (3ª persona) ----------
@@ -1441,6 +1451,7 @@
   }
   function update(dt) {
     if (player.dead) { player.respawn -= dt; if (player.respawn <= 0) respawnPlayer(); }
+    if (player.protect > 0) player.protect -= dt;
     const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? RUN : WALK;
     const forward = new T.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
     const right = new T.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
@@ -1853,7 +1864,7 @@
     for (const k in board) delete board[k]; boardList = []; matchEnded = false; matchStart = performance.now(); matchTimeLeft = match.limitSec;
     document.getElementById('endscreen').style.display = 'none';
     player.hp = MAXHP; player.dead = false; player.lastAttacker = null; updateHealth();
-    player.pos.copy(spawnPoint); player.vel.set(0, 0, 0);
+    player.pos.copy(safeSpawn()); player.vel.set(0, 0, 0); player.protect = 2.0;
     setAvatar(selectedChar); setWeapon('rifle');
     try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
     document.getElementById('mpReady').style.display = 'none';
@@ -1968,7 +1979,7 @@
         if (terrainH(p.x, p.z) < 0.4 && !insideSolid(p)) return p; }
       return spawnPoint.clone();
     }
-    let noAmmoT = 0, prevEnded = false, prevP = null;
+    let noAmmoT = 0, prevEnded = false, prevP = null, aliveAt = 0;
     let stairIdx = R.mode === 'join' ? 27 : 0, task = null, taskT = 0, lastPos = null, stuckT = 0, moveCheckT = 0, unstickT = 0, strafe = 1, strafeT = 0, fpsAcc = 0, fpsN = 0, fpsT = 0, wasDead = false, lastScore = 0, weaponT = 8;
     function newTask() {
       taskT = 0; unstickT = 0; stuckT = 0; lastPos = null; moveCheckT = 0;
@@ -2001,8 +2012,8 @@
       if (fpsT > 2) { const f = fpsN / fpsAcc; R.fps.min = Math.min(R.fps.min, +f.toFixed(1)); R.fps.samples.push(+f.toFixed(1)); if (R.fps.samples.length > 60) R.fps.samples.shift(); if (f < 15) issue('low_fps', player.pos, f.toFixed(0) + 'fps'); fpsAcc = 0; fpsN = 0; fpsT = 0; }
       for (const k of ['KeyW', 'KeyA', 'KeyD', 'KeyS', 'Space']) keys[k] = false;
       firing = false;
-      if (player.dead) { wasDead = true; return; }
-      if (wasDead) { wasDead = false; R.combat.deaths++; log('muerto'); task = null; prevP = null;
+      if (player.dead) { if (!wasDead && performance.now() - aliveAt < 4000) issue('spawn_killed', player.pos, ((performance.now() - aliveAt) / 1000).toFixed(1) + 's'); wasDead = true; return; }
+      if (wasDead) { wasDead = false; aliveAt = performance.now(); R.combat.deaths++; log('muerto'); task = null; prevP = null;
         if (insideSolid(player.pos) || (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 0.5)) issue('bad_spawn', player.pos); }
       if (ammo[curWeapon].mag <= 0 && !reloading) { noAmmoT += dt; if (noAmmoT > 2) { issue('reload_stuck', player.pos, curWeapon); noAmmoT = 0; } } else noAmmoT = 0;
       if (score !== lastScore) { R.combat.kills += Math.max(0, score - lastScore); lastScore = score; }
