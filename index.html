@@ -388,7 +388,7 @@
 
   // ---------- MAP (pueblo del desierto) ----------
   const mapGroup = new T.Group(); scene.add(mapGroup);
-  const solids = [], ramps = [];
+  const solids = [], ramps = [], winCols = []; // winCols: tapan ventanas solo para el jugador
 
   const spawnPoint = new T.Vector3(0, 0, 34);
 
@@ -723,10 +723,18 @@
   function tblock(o) {
     const { x0, z0, x1, z1, floors } = o, t = 0.4, M = TM, fh = o.fh || FH;
     const band = o.band || o.mat, W = x1 - x0, D = z1 - z0;
-    flatZones.push([Math.min(x0, x1), Math.max(x0, x1), Math.min(z0, z1), Math.max(z0, z1)]);
     const sill = 1.05, head = Math.min(fh - 0.75, 3.3 + (fh - FH) * 0.6);
     const matNS = o.matNS || o.mat, matEW = o.matEW || o.mat;
-    function side(ax, fixed, a0, a1, yb, isDoor, mat, ground, sideName) {
+    // ¿este tramo de pared coincide con el borde/interior de un bloque construido antes? (ya hay pared o paso ahí)
+    const prev = flatZones.slice();
+    function shared(ax, fixed, c) {
+      for (const [a0, a1, b0, b1] of prev) {
+        if (ax === 'x') { if (fixed >= b0 - 0.5 && fixed <= b1 + 0.5 && c > a0 + 0.2 && c < a1 - 0.2) return true; }
+        else if (fixed >= a0 - 0.5 && fixed <= a1 + 0.5 && c > b0 + 0.2 && c < b1 - 0.2) return true;
+      }
+      return false;
+    }
+    function side(ax, fixed, a0, a1, yb, isDoor, mat0, ground, sideName) {
       if ((o.skip || '').includes(sideName)) return;
       const openAll = (o.openSides || '').includes(sideName);
       const arch = ground && o.arch, winW = arch ? 3.2 : (o.winW || 2.0);
@@ -734,11 +742,15 @@
       const P = (p0, p1, y0, y1, m) => ax === 'x' ? tbox(p0, y0, fixed - t / 2, p1, y1, fixed + t / 2, m) : tbox(fixed - t / 2, y0, p0, fixed + t / 2, y1, p1, m);
       for (let i = 0; i < n; i++) {
         const c = a0 + step * (i + 0.5), w0 = c - winW / 2, w1 = c + winW / 2, s0 = a0 + step * i, s1 = a0 + step * (i + 1);
+        if (shared(ax, fixed, c)) continue;
+        const mat = o.matAt ? o.matAt(sideName, c, mat0) : mat0;
         P(s0, w0, yb, yb + fh, mat); P(w1, s1, yb, yb + fh, mat);
-        const inSpan = !o.openSpan || (c >= o.openSpan[0] && c <= o.openSpan[1]);
+        const sp = o.openSpan && [Math.min(o.openSpan[0], o.openSpan[1]), Math.max(o.openSpan[0], o.openSpan[1])];
+        const inSpan = !sp || (w0 >= sp[0] + 0.3 && w1 <= sp[1] - 0.3); // el paso tiene que caber entero
         const door = i === dIdx || arch || (openAll && inSpan), dTop = arch ? fh - 0.8 - winW / 2 : 3.4;
         if (door) P(w0, w1, yb + dTop, yb + fh, band);
-        else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + fh, band); }
+        else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + fh, band);
+          winCols.push(ax === 'x' ? collider((w0 + w1) / 2, yb + (sill + head) / 2, fixed, w1 - w0, head - sill, t) : collider(fixed, yb + (sill + head) / 2, (w0 + w1) / 2, t, head - sill, w1 - w0)); }
         if (arch) { // arco de medio punto
           const ax2 = ax === 'x'; tArch(ax2 ? c : fixed, yb + dTop, ax2 ? fixed : c, winW / 2 + 0.05, ax2, o.frame || M.trim);
           continue;
@@ -789,6 +801,7 @@
       const ax0 = x0 + 3 + ((k * 7.3) % Math.max(1, W - 7)), az0 = z1 - 4.5 - ((k * 3.1) % Math.max(1, D - 8));
       tbox(ax0, ry, az0, ax0 + 2.2, ry + 1.3, az0 + 1.6, M.trim); tbox(ax0 + 0.3, ry + 1.3, az0 + 0.3, ax0 + 1.9, ry + 1.45, az0 + 1.3, M.dark, false);
     }
+    flatZones.push([Math.min(x0, x1), Math.max(x0, x1), Math.min(z0, z1), Math.max(z0, z1)]);
     if (o.furnish === true) furnishBlock(o, x0, z0, x1, z1, floors, fh, t, canStairs, wells, zs, ze);
     return ry;
   }
@@ -881,11 +894,9 @@
   // C: 2 plantas altas de ladrillo con fachada central azul, miradores blancos y esquinas redondeadas
   function tBuildingC() {
     const M = TM, x0 = tx(8.78), x1 = tx(11.06), z0 = tz(4.88), z1 = tz(2.85), fh = 4.5 * KS;
-    const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.brick, band: M.white, doors: 'W', parapet: M.white, parapetH: 1.0, frame: M.white, ac: 1 });
     const cz = (z0 + z1) / 2, w = (z1 - z0) * 0.42;
-    tbox(x0 - 0.35, 0.4, cz - w / 2, x0 + 0.05, ry, cz + w / 2, M.blue, false);          // paño azul central (fachada oeste)
-    for (const sz of [-1, 1]) { const bz = cz + sz * (w / 2 + 1.6);                          // miradores blancos
-      for (let f = 0; f < 2; f++) tbox(x0 - 1.1, f * fh + 0.9, bz - 1.3, x0, f * fh + 3.5, bz + 1.3, M.white, false); }
+    const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.brick, band: M.white, doors: 'W', parapet: M.white, parapetH: 1.0, frame: M.white, ac: 1,
+      matAt: (sn, c, m) => (sn === 'W' && Math.abs(c - cz) < w / 2) ? M.blue : m });
     for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) { const c = new T.Mesh(new T.CylinderGeometry(0.8, 0.8, 1.1, 12), M.white); c.position.set(px, ry + 0.55, pz); mapGroup.add(c); }
     for (const sz of [-1, 1]) tbox(x0 - 3, 0, cz + sz * 5 - 2, x0 - 1.5, 0.9, cz + sz * 5 + 2, M.hedge); // setos
   }
@@ -967,7 +978,9 @@
       else { const xc = (x0 + x1) / 2; for (let z = z0 + 2; z < z1 - 2; z += 6) tbox(xc - 0.15, 0.05, z, xc + 0.15, 0.08, z + 3, TM.yellow, false); }
     }
   }
-  function tLamp(x, z) {
+  const lampQueue = [];
+  function tLamp(x, z) { lampQueue.push([x, z]); }
+  function tLampNow(x, z) {
     tbox(x - 0.12, 0, z - 0.12, x + 0.12, 6.2, z + 0.12, TM.dark);
     tbox(x - 0.12, 6.0, z - 0.12, x + 1.6, 6.25, z + 0.12, TM.dark, false);
     tbox(x + 1.1, 5.75, z - 0.25, x + 1.8, 6.0, z + 0.25, TM.white, false);
@@ -1041,6 +1054,8 @@
     batchesDone();
     car(tx(-1.0), tz(0.4), Math.PI / 2, 0x3b6fd0); car(tx(6.0), tz(0.7), Math.PI / 2, 0xd0d0d0); car(tx(1.5), tz(-9.8), Math.PI / 2, 0xc33b4b);
     car(tx(-7.0), tz(-14.0), 0, 0xe0b23a); car(tx(4.5), tz(-8.5), 0, 0x2fa35a); car(tx(-1.6), tz(-15.2), 0, 0x9d4bc2);
+    for (const [x, z] of lampQueue) if (!flatZones.some(([a0, a1, b0, b1]) => x > a0 - 1.2 && x < a1 + 1.2 && z > b0 - 1.2 && z < b1 + 1.2)) tLampNow(x, z);
+    lampQueue.length = 0;
     // colinas y acantilados que rodean el valle (después de los edificios: se aplana bajo ellos)
     buildTerrain(floors);
     // límites invisibles
@@ -1105,7 +1120,7 @@
     return floors;
   }
   let currentMap = 'desert', walkables = [], worldSolids = [];
-  function clearMap() { for (let i = mapGroup.children.length - 1; i >= 0; i--) mapGroup.remove(mapGroup.children[i]); solids.length = 0; ramps.length = 0; }
+  function clearMap() { for (let i = mapGroup.children.length - 1; i >= 0; i--) mapGroup.remove(mapGroup.children[i]); solids.length = 0; ramps.length = 0; winCols.length = 0; }
   function buildMap(kind) {
     currentMap = kind; clearMap();
     ARENA = kind === 'city' ? 125 : 44; terrainFn = null; cityBounds = null;
@@ -1379,10 +1394,11 @@
     const g = s.geometry.parameters; return { hw: g.width / 2, hh: g.height / 2, hd: g.depth / 2 };
   }
   // empuja una posición fuera de todas las cajas sólidas (colisión circular horizontal)
-  function collideCircle(pos, r) {
+  function collideCircle(pos, r, prev) {
     let hit = false;
     const yLo = pos.y + STEP - 0.05, yHi = pos.y + PLAYER_H - 0.2; // se puede subir a bordes de hasta un escalón
-    for (const s of solids) {
+    for (let k = 0, n = solids.length + winCols.length; k < n; k++) {
+      const s = k < solids.length ? solids[k] : winCols[k - solids.length];
       const b = boxDims(s), hw = b.hw, hh = b.hh, hd = b.hd;
       const minY = s.position.y - hh, maxY = s.position.y + hh;
       if (yHi < minY || yLo > maxY) continue;
@@ -1390,13 +1406,17 @@
       const oxX = Math.min(maxX + r - pos.x, pos.x - (minX - r));
       const oxZ = Math.min(maxZ + r - pos.z, pos.z - (minZ - r));
       if (oxX <= 0 || oxZ <= 0) continue;
-      if (oxX < oxZ) pos.x += (pos.x < s.position.x ? -oxX : oxX);
+      // si sabemos de qué lado venía, se le devuelve a ese lado (nunca se atraviesa una pared fina)
+      const fromX = prev && (prev.x <= minX - r + 0.02 || prev.x >= maxX + r - 0.02), fromZ = prev && (prev.z <= minZ - r + 0.02 || prev.z >= maxZ + r - 0.02);
+      if (fromZ && !fromX) pos.z = prev.z < s.position.z ? minZ - r : maxZ + r;
+      else if (fromX && !fromZ) pos.x = prev.x < s.position.x ? minX - r : maxX + r;
+      else if (oxX < oxZ) pos.x += (pos.x < s.position.x ? -oxX : oxX);
       else pos.z += (pos.z < s.position.z ? -oxZ : oxZ);
       hit = true;
     }
     return hit;
   }
-  function resolveWalls() { collideCircle(player.pos, PLAYER_R); }
+  function resolveWalls(prev) { collideCircle(player.pos, PLAYER_R, prev); }
 
   // ¿tiene el bot línea de visión al jugador? (sin edificios en medio)
   const losRay = new T.Raycaster();
@@ -1428,7 +1448,7 @@
     if (player.dead) move.set(0, 0, 0);
     const ox = player.pos.x, oz = player.pos.z;
     player.pos.x += move.x * dt; player.pos.z += move.z * dt;
-    resolveWalls();
+    resolveWalls({ x: ox, z: oz });
     // anti-atravesar: una pared nunca puede empujarte más allá de lo que te has movido este frame
     if (Math.hypot(player.pos.x - ox, player.pos.z - oz) > Math.hypot(move.x, move.z) * dt + 0.9) { player.pos.x = ox; player.pos.z = oz; }
     // pendiente del terreno demasiado empinada = pared
@@ -1892,7 +1912,7 @@
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
     match.limitSec = +(Q.get('secs') || 90); R.rounds = [];
-    window.__botDbg = { solids, ramps, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
+    window.__botDbg = { solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
     const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
     const issue = (kind, pos, extra) => {
       const key = kind + '@' + Math.round(pos.x / 4) * 4 + ',' + Math.round(pos.y) + ',' + Math.round(pos.z / 4) * 4;
@@ -1943,14 +1963,14 @@
         if (terrainH(p.x, p.z) < 0.4 && !insideSolid(p)) return p; }
       return spawnPoint.clone();
     }
-    let noAmmoT = 0, prevEnded = false;
+    let noAmmoT = 0, prevEnded = false, prevP = null;
     let stairIdx = R.mode === 'join' ? 27 : 0, task = null, taskT = 0, lastPos = null, stuckT = 0, moveCheckT = 0, unstickT = 0, strafe = 1, strafeT = 0, fpsAcc = 0, fpsN = 0, fpsT = 0, wasDead = false, lastScore = 0, weaponT = 8;
     function newTask() {
       taskT = 0;
       if (Math.random() < 0.6 && ramps.length) {   // prueba de escalera (todas, por turnos): ponerse al pie y subir
         const r = ramps[(stairIdx++) % ramps.length], e = rampEnds(r), dir = e.hi.clone().sub(e.lo).setY(0).normalize();
         const start = e.lo.clone().addScaledVector(dir, -0.7);
-        player.pos.set(start.x, e.lo.y + 0.05, start.z); player.vel.set(0, 0, 0); yaw = Math.atan2(-dir.x, -dir.z); pitch = 0;
+        prevP = null; player.pos.set(start.x, e.lo.y + 0.05, start.z); player.vel.set(0, 0, 0); yaw = Math.atan2(-dir.x, -dir.z); pitch = 0;
         R.stairs.tested++; task = { kind: 'stairs', lo: e.lo, hi: e.hi, target: e.hi.clone().addScaledVector(dir, 1.2), ramp: r };
       } else task = { kind: 'roam', target: randomGroundPoint() };
     }
@@ -1977,7 +1997,7 @@
       for (const k of ['KeyW', 'KeyA', 'KeyD', 'KeyS', 'Space']) keys[k] = false;
       firing = false;
       if (player.dead) { wasDead = true; return; }
-      if (wasDead) { wasDead = false; R.combat.deaths++; log('muerto'); task = null;
+      if (wasDead) { wasDead = false; R.combat.deaths++; log('muerto'); task = null; prevP = null;
         if (insideSolid(player.pos) || (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 0.5)) issue('bad_spawn', player.pos); }
       if (ammo[curWeapon].mag <= 0 && !reloading) { noAmmoT += dt; if (noAmmoT > 2) { issue('reload_stuck', player.pos, curWeapon); noAmmoT = 0; } } else noAmmoT = 0;
       if (score !== lastScore) { R.combat.kills += Math.max(0, score - lastScore); lastScore = score; }
@@ -1987,11 +2007,18 @@
       if (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 1.0) issue('under_terrain', player.pos);
       if (player.pos.y < -1) issue('fell_below_map', player.pos);
       if (insideSolid(player.pos)) issue('inside_solid', player.pos, task ? task.kind : '');
+      // ¿ha cruzado una ventana entre este frame y el anterior?
+      if (prevP) for (const wc of winCols) { const u = wc.userData, q = wc.position;
+        if (Math.abs(q.x - player.pos.x) > 3 + u.hw || Math.abs(q.z - player.pos.z) > 3 + u.hd) continue;
+        const y = player.pos.y + 1.2; if (Math.abs(y - q.y) > u.hh) continue;
+        if (u.hd < u.hw) { if (Math.abs(player.pos.x - q.x) < u.hw && Math.sign(player.pos.z - q.z) !== Math.sign(prevP.z - q.z)) issue('crossed_window', player.pos); }
+        else if (Math.abs(player.pos.z - q.z) < u.hd && Math.sign(player.pos.x - q.x) !== Math.sign(prevP.x - q.x)) issue('crossed_window', player.pos); }
+      prevP = player.pos.clone();
       R.maxY = Math.max(R.maxY, +player.pos.y.toFixed(1));
       // cambiar de arma de vez en cuando
       weaponT -= dt; if (weaponT <= 0) { weaponT = 10 + Math.random() * 10; setWeapon(['rifle', 'shotgun', 'sniper'][(Math.random() * 3) | 0]); }
       // combate
-      const foe = visibleFoe();
+      const foe = task && task.kind === 'stairs' ? null : visibleFoe();
       if (foe) {
         const err = face(foe, dt, 6);
         const eye = player.pos.y + EYE, hd = Math.hypot(foe.x - player.pos.x, foe.z - player.pos.z);
