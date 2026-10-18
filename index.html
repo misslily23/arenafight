@@ -393,7 +393,7 @@
     return g;
   }
   const CHARS = [
-    { id: 'stick', emoji: '🪵', name: 'Tung Tung Tung Sahur', desc: 'Tung tung tung sahur' },
+    { id: 'stick', emoji: '🪵', name: 'Triple T', desc: 'Tung tung tung' },
     { id: 'doge', emoji: '🐕', name: 'Doge', desc: 'Much wow' },
     { id: 'troll', emoji: '😈', name: 'Troll', desc: 'Problem?' },
     { id: 'wojak', emoji: '😐', name: 'Wojak', desc: 'I know that feel' },
@@ -1484,7 +1484,7 @@
     mag.position.set(0, type === 'shotgun' ? -0.08 : -0.15, type === 'sniper' ? 0.0 : (type === 'shotgun' ? -0.18 : -0.02)); if (type === 'shotgun') mag.visible = false; g.add(mag);
     g.userData.mag = mag; g.userData.magBase = mag.position.clone();
     // brazos en primera persona: mano derecha en la empuñadura, izquierda en el guardamanos
-    const sleeve = 0x34465a, skin = 0xd9a77c;
+    const st = ARM_STYLE[selectedChar] || ARM_STYLE.wojak, sleeve = st[0], skin = st[1]; // brazos del color de la skin elegida
     const arm = (hand, elbow, shoulder) => { const a = new T.Group();
       a.add(limbBetween(hand, elbow, 0.045, skin)); a.add(limbBetween(elbow, shoulder, 0.06, sleeve));
       const h = cmesh(new T.BoxGeometry(0.075, 0.075, 0.11), skin); h.position.copy(hand); a.add(h); return a; };
@@ -1495,6 +1495,8 @@
     return g;
   }
   // cilindro entre dos puntos (para los brazos del arma en primera persona)
+  // [parte de arriba del brazo, antebrazo/mano] de cada personaje (sacado de sus modelos)
+  const ARM_STYLE = { stick: [0xb8672d, 0xd68844], doge: [0xd99a4e, 0xf6e8cc], troll: [0x171717, 0x222222], wojak: [0xeee6da, 0xeee6da], chad: [0xd5b8a4, 0xd5b8a4] };
   function limbBetween(a, b, r, color) {
     const d = b.clone().sub(a), m = cmesh(new T.CylinderGeometry(r, r * 1.1, d.length(), 8), color);
     m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); return m;
@@ -2032,7 +2034,7 @@
         const facing = new T.Group(); facing.rotation.y = GLB_FACING; facing.add(raw);
         const wrap = new T.Group(); wrap.add(facing); return wrap;
       }
-      glbChar.stick = build('wood_', /display_base/);
+      glbChar.stick = build('wood_', /display_base|bat_/); // Triple T sin el palo
       glbChar.chad = build('chibi_', null);
       refreshModels();
     }, undefined, function (e) { console.warn('Could not load the .glb:', e); });
@@ -2312,7 +2314,7 @@
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
     match.limitSec = +(Q.get('secs') || 60); R.rounds = [];
-    window.__botDbg = { zones: () => ({ roads: roadZones.slice(), blds: flatZones.slice() }), setView: (y, p) => { yaw = y; pitch = p; }, avatar: () => avatar, setChar: c => { selectedChar = c; setAvatar(c); }, terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
+    window.__botDbg = { zones: () => ({ roads: roadZones.slice(), blds: flatZones.slice() }), setView: (y, p) => { yaw = y; pitch = p; }, avatar: () => avatar, setChar: c => { selectedChar = c; setAvatar(c); setWeapon(curWeapon); }, terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
     const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
     const issue = (kind, pos, extra) => {
       const key = kind + '@' + Math.round(pos.x / 4) * 4 + ',' + Math.round(pos.y) + ',' + Math.round(pos.z / 4) * 4;
