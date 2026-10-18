@@ -441,15 +441,45 @@
     const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; return t;
   }
   const CITYTEX = [facadeTexture('#9aa0a6', '#2c3a46'), facadeTexture('#a5584a', '#241d1a'), facadeTexture('#c7b389', '#33291c'), facadeTexture('#6d8196', '#1f2c38')];
-  function cityBuilding(x, z, w, d, floors, ti) {
-    const h = floors * 3;
+  function facadeBox(x, baseY, z, w, d, h, ti) {
     const tex = CITYTEX[ti].clone(); tex.wrapS = tex.wrapT = T.RepeatWrapping;
     tex.repeat.set(Math.max(1, Math.round(w / 8)), Math.max(1, Math.round(h / 6))); tex.needsUpdate = true;
     const m = new T.Mesh(new T.BoxGeometry(w, h, d), new T.MeshLambertMaterial({ map: tex }));
-    m.position.set(x, h / 2, z); mapGroup.add(m); solids.push(m);
-    deco(x, h, z, w + 0.3, 0.4, d + 0.3, 0x3a3d42); // cornisa
-    deco(x + (Math.random() - 0.5) * w * 0.4, h + 0.4, z + (Math.random() - 0.5) * d * 0.4, 1.4, 1.2, 1.4, 0x55595f); // caseta tejado
+    m.position.set(x, baseY + h / 2, z); mapGroup.add(m); solids.push(m);
+    deco(x, baseY + h, z, w + 0.3, 0.4, d + 0.3, 0x3a3d42); // cornisa
     return m;
+  }
+  const DOORS = ['N', 'S', 'E', 'W'];
+  // Edificio de ciudad: planta baja HUECA (entrable, ventanas) + pisos sólidos con fachada encima
+  function cityBlock(x, z, w, d, floors, ti, enterable) {
+    const groundH = 3.4;
+    if (enterable) {
+      hollowBuilding(x, z, w, d, groundH, 0xa6adb5, 0x3a3d42, DOORS[(Math.random() * 4) | 0]);
+      if (floors > 1) facadeBox(x, groundH, z, w, d, (floors - 1) * 3, ti);
+    } else {
+      facadeBox(x, 0, z, w, d, floors * 3, ti);
+    }
+    if (Math.random() < 0.5) deco(x + (Math.random() - 0.5) * w * 0.4, floors * 3 + 0.4, z + (Math.random() - 0.5) * d * 0.4, 1.4, 1.2, 1.4, 0x55595f);
+  }
+  function clockTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+    x.fillStyle = '#eee9dc'; x.beginPath(); x.arc(64, 64, 62, 0, 7); x.fill();
+    x.strokeStyle = '#2a2a2a'; x.lineWidth = 4; x.stroke();
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; x.beginPath(); x.moveTo(64 + Math.sin(a) * 52, 64 - Math.cos(a) * 52); x.lineTo(64 + Math.sin(a) * 58, 64 - Math.cos(a) * 58); x.stroke(); }
+    x.lineWidth = 6; x.beginPath(); x.moveTo(64, 64); x.lineTo(64, 28); x.stroke();
+    x.lineWidth = 4; x.beginPath(); x.moveTo(64, 64); x.lineTo(92, 74); x.stroke();
+    return new T.CanvasTexture(c);
+  }
+  const clockTex = clockTexture();
+  function clockTower(x, z, floors) {
+    const h = floors * 3;
+    hollowBuilding(x, z, 9, 9, 3.4, 0xb7a98f, 0x5a5346, 'S');
+    facadeBox(x, 3.4, z, 8, 8, h - 3.4, 2);
+    const belfry = cmesh(new T.BoxGeometry(6.4, 3.2, 6.4), 0xd9cdb4); belfry.position.set(x, h + 1.6, z); mapGroup.add(belfry);
+    for (const [dx, dz, ry] of [[0, 3.25, 0], [0, -3.25, Math.PI], [3.25, 0, Math.PI / 2], [-3.25, 0, -Math.PI / 2]]) {
+      const cl = new T.Mesh(new T.CircleGeometry(1.25, 24), new T.MeshBasicMaterial({ map: clockTex })); cl.position.set(x + dx, h + 1.7, z + dz); cl.rotation.y = ry; mapGroup.add(cl);
+    }
+    const roof = cmesh(new T.ConeGeometry(5, 3.4, 4), 0x9a4b3a); roof.position.set(x, h + 4.9, z); roof.rotation.y = Math.PI / 4; mapGroup.add(roof);
   }
   function car(x, z, ang, color) {
     const g = new T.Group();
@@ -484,28 +514,33 @@
     spawnPoint.set(0, 0, 34);
     return floors;
   }
-  function buildCity() {
+  function buildCity() { // estilo Tilted Towers: plaza central, torre del reloj y edificios alrededor
     const floors = [];
-    const asphalt = new T.Mesh(new T.PlaneGeometry(600, 600), new T.MeshLambertMaterial({ color: 0x3b3e44 }));
+    const asphalt = new T.Mesh(new T.PlaneGeometry(600, 600), new T.MeshLambertMaterial({ color: 0x4a4e56 }));
     asphalt.rotation.x = -Math.PI / 2; mapGroup.add(asphalt); floors.push(asphalt);
+    // plaza central más clara
+    const plaza = new T.Mesh(new T.CircleGeometry(12, 32), new T.MeshLambertMaterial({ color: 0x6b7079 }));
+    plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.02; mapGroup.add(plaza); floors.push(plaza);
     const S = ARENA;
-    addBox(0, 0, -S, S * 2 + 2, 22, 2, 0x6a6f77); addBox(0, 0, S, S * 2 + 2, 22, 2, 0x6a6f77);
-    addBox(-S, 0, 0, 2, 22, S * 2 + 2, 0x6a6f77); addBox(S, 0, 0, 2, 22, S * 2 + 2, 0x6a6f77);
-    // manzanas de edificios (calles en gx=0 y gz=0)
-    for (let gx = -3; gx <= 3; gx++) for (let gz = -3; gz <= 3; gz++) {
-      if (gx === 0 || gz === 0) continue;
-      const x = gx * 12, z = gz * 12, floorsN = 2 + (Math.random() * 5 | 0), ti = (Math.random() * CITYTEX.length) | 0;
-      cityBuilding(x, z, 7 + Math.random() * 2, 7 + Math.random() * 2, floorsN, ti);
-    }
-    cityBuilding(-24, -24, 10, 10, 9, 0); // rascacielos esquina
-    deco(-24, 27, -24, 2, 6, 2, 0x8a9096); deco(-24, 33, -24, 1.2, 1.2, 1.2, 0xd9c23a); // antena
-    cityBuilding(24, 24, 10, 10, 8, 1);
-    // líneas de calle (decorativas)
-    for (let t = -40; t <= 40; t += 6) { deco(0, 0.02, t, 0.3, 0.06, 2.6, 0xd9c23a); deco(t, 0.02, 0, 2.6, 0.06, 0.3, 0xd9c23a); }
+    addBox(0, 0, -S, S * 2 + 2, 24, 2, 0x5f646c); addBox(0, 0, S, S * 2 + 2, 24, 2, 0x5f646c);
+    addBox(-S, 0, 0, 2, 24, S * 2 + 2, 0x5f646c); addBox(S, 0, 0, 2, 24, S * 2 + 2, 0x5f646c);
+    // torre del reloj (landmark, cerca del centro)
+    clockTower(7, -7, 9);
+    // edificios alrededor: [x, z, w, d, pisos, textura, entrable]
+    const B = [
+      [-15, -14, 11, 10, 5, 0, true], [15, -17, 11, 11, 6, 1, true], [-17, 12, 10, 12, 4, 2, true],
+      [16, 15, 11, 10, 5, 3, true], [-27, -3, 9, 13, 7, 0, false], [27, 3, 9, 13, 6, 1, false],
+      [-7, 23, 11, 9, 3, 2, true], [9, 25, 10, 9, 4, 3, true], [-25, 25, 9, 9, 8, 0, false],
+      [25, -25, 10, 10, 5, 1, true], [-12, -29, 11, 8, 4, 2, true], [-27, -27, 9, 9, 7, 3, false]
+    ];
+    for (const b of B) cityBlock(b[0], b[1], b[2], b[3], b[4], b[5], b[6]);
+    deco(-25, 25 + 24 + 1, 25, 1.5, 6, 1.5, 0x8a9096); // antena en el rascacielos
+    // líneas de calle
+    for (let t = -40; t <= 40; t += 6) { deco(0, 0.03, t, 0.3, 0.06, 2.6, 0xd9c23a); deco(t, 0.03, 0, 2.6, 0.06, 0.3, 0xd9c23a); }
     // coches de cobertura
     car(0, 14, 0, 0xcf4b3a); car(0, -20, 0, 0x3a6fcf); car(16, 0, Math.PI / 2, 0xdedede);
-    car(-22, 0, Math.PI / 2, 0x2fa35a); car(0, 32, 0, 0xe0b23a); car(0, -34, 0, 0x8a8f96);
-    spawnPoint.set(0, 0, 20);
+    car(-22, 0, Math.PI / 2, 0x2fa35a); car(0, 32, 0, 0xe0b23a); car(-3, -3, 0.6, 0xc24b8a);
+    spawnPoint.set(0, 0, 18);
     return floors;
   }
   let currentMap = 'desert', walkables = [], worldSolids = [];
