@@ -130,7 +130,7 @@
   <div id="health"><div id="healthbar"></div><span id="hptext">100</span></div>
   <div id="hint">
     <kbd>WASD</kbd> move · <kbd>Space</kbd> jump · <kbd>Shift</kbd> sprint<br/>
-    <kbd>1/2/3</kbd> weapons · <kbd>Left click</kbd> shoot · <kbd>Right click</kbd> aim<br/>
+    <kbd>1-4</kbd> weapons · <kbd>Left click</kbd> shoot · <kbd>Right click</kbd> aim<br/>
     <kbd>R</kbd> reload · <kbd>V</kbd> 1st/3rd person · <kbd>Esc</kbd> pause
   </div>
   <div id="ammo"><div class="wname" id="wname">Rifle</div><div class="mag"><span id="magn">30</span><span style="font-size:20px;opacity:.6">/∞</span></div><div class="reload" id="reloadTxt"></div></div>
@@ -163,7 +163,7 @@
   <div id="controls">
     <div><span class="k">WASD</span> move</div><div><span class="k">Mouse</span> look</div><div><span class="k">Space</span> jump</div>
     <div><span class="k">Shift</span> sprint</div><div><span class="k">1</span> Rifle</div><div><span class="k">2</span> Shotgun</div>
-    <div><span class="k">3</span> Sniper</div><div><span class="k">Left click</span> shoot</div><div><span class="k">Right click</span> aim</div>
+    <div><span class="k">3</span> Sniper</div><div><span class="k">4</span> Minigun</div><div><span class="k">Left click</span> shoot</div><div><span class="k">Right click</span> aim</div>
     <div><span class="k">R</span> reload</div><div><span class="k">V</span> 3rd person</div><div><span class="k">Esc</span> pause</div>
   </div>
   <p id="paused">Click PLAY to capture the mouse. Press <kbd>Esc</kbd> to pause.</p>
@@ -188,6 +188,7 @@
     rifle:   { name: 'Rifle',    auto: true,  dmg: 28, rate: 0.11, pellets: 1, spread: 0.012, adsFov: 58, mag: 30, reload: 2.0, kick: 0.012 },
     shotgun: { name: 'Shotgun', auto: false, dmg: 13, rate: 0.75, pellets: 9, spread: 0.075, adsFov: 66, mag: 7,  reload: 2.6, kick: 0.05 },
     sniper:  { name: 'Sniper',   auto: false, dmg: 125, rate: 1.1, pellets: 1, spread: 0.0,   adsFov: 28, mag: 5,  reload: 3.0, kick: 0.06 },
+    minigun: { name: 'Minigun',  auto: true,  dmg: 13, rate: 0.055, pellets: 1, spread: 0.035, adsFov: 62, mag: 150, reload: 4.2, kick: 0.004, spin: 0.45, slow: 0.65 },
   };
 
   // ---------- Scene ----------
@@ -287,11 +288,33 @@
     x.clearRect(0, 0, 512, 256);
     eye(138, 150, 104, 82, -10); eye(376, 146, 108, 84, 12); // los dos párpados caen hacia fuera (cara triste)
   }
+  function drawPepeFace(x) { // 512x512: ojos de párpado pesado arriba y labios anchos abajo (estilo meme)
+    x.clearRect(0, 0, 512, 512);
+    const eye = (cx, cy, rx, ry, droop) => {
+      x.save(); x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); x.fillStyle = '#fff'; x.fill(); x.clip();
+      x.fillStyle = '#0d0d0d'; x.beginPath(); x.arc(cx + rx * 0.25, cy + ry * 0.28, ry * 0.52, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#fff'; x.beginPath(); x.arc(cx + rx * 0.36, cy + ry * 0.12, ry * 0.15, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#4b8b33'; x.beginPath(); x.moveTo(cx - rx - 5, cy - ry - 5); x.lineTo(cx + rx + 5, cy - ry - 5);
+      x.lineTo(cx + rx + 5, cy - ry * 0.25 + droop); x.lineTo(cx - rx - 5, cy - ry * 0.25 - droop); x.closePath(); x.fill(); x.restore();
+      x.strokeStyle = '#0b0b0b'; x.lineCap = 'round'; x.lineWidth = 8; x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); x.stroke();
+      x.lineWidth = 12; x.beginPath(); x.moveTo(cx - rx - 6, cy - ry * 0.25 - droop); x.quadraticCurveTo(cx, cy - ry * 0.4, cx + rx + 6, cy - ry * 0.25 + droop); x.stroke();
+      x.lineWidth = 5; for (const k of [1, 2]) { x.beginPath(); x.moveTo(cx - rx * 0.65, cy - ry * 0.55 - k * 13); x.quadraticCurveTo(cx, cy - ry * 0.75 - k * 14, cx + rx * 0.7, cy - ry * 0.5 - k * 13); x.stroke(); }
+    };
+    eye(165, 180, 88, 76, -9); eye(352, 175, 92, 78, 11);
+    // labios: anchos, gruesos, marrón anaranjado, con contorno y raya oscura
+    const lip = (y0, y1, th, col) => { x.beginPath(); x.moveTo(70, y0); x.bezierCurveTo(180, y0 - 16, 340, y0 - 22, 450, y0 - 8);
+      x.bezierCurveTo(462, y0 + th * 0.5, 452, y1 + th, 430, y1 + th); x.bezierCurveTo(330, y1 + th + 6, 170, y1 + th + 8, 82, y1 + th * 0.6);
+      x.bezierCurveTo(60, y1 + th * 0.4, 58, y0 + 6, 70, y0); x.closePath(); x.fillStyle = col; x.fill(); x.lineWidth = 8; x.strokeStyle = '#0b0b0b'; x.stroke(); };
+    lip(362, 362, 46, '#b4532c'); lip(418, 414, 40, '#a64824');
+    x.lineWidth = 5; x.strokeStyle = '#4a1c0c'; x.beginPath(); x.moveTo(95, 412); x.bezierCurveTo(200, 402, 330, 398, 440, 406); x.stroke();
+    x.lineWidth = 5; x.strokeStyle = '#1c3a12'; x.beginPath(); x.moveTo(60, 330); x.quadraticCurveTo(80, 300, 120, 310); x.stroke(); // pliegue de la mejilla
+  }
   function drawChadChest(x) {
     x.clearRect(0, 0, 256, 256);
     x.fillStyle = '#111'; x.textAlign = 'center'; x.font = 'bold 50px Arial';
     x.fillText('STOP', 128, 92); x.fillText('BEING', 128, 150); x.fillText('POOR', 128, 208);
   }
+  const pepeFaceTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; drawPepeFace(c.getContext('2d')); const t = new T.CanvasTexture(c); t.anisotropy = 4; return t; })();
   const pepeEyesTex = (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 256; drawPepeEyes(c.getContext('2d')); const t = new T.CanvasTexture(c); t.anisotropy = 4; return t; })();
   const trollTex = faceTex(drawTroll), wojakTex = faceTex(drawWojak), chadTex = faceTex(drawChadChest);
 
@@ -372,21 +395,13 @@
       const H = m => { g.add(m); g.userData.headMeshes.push(m); return m; };
       const torso = outline(cmesh(new T.CylinderGeometry(0.52, 0.6, 1.35, 16), shirt), 1.04); torso.position.y = 1.5; g.add(torso);
       const neck = cmesh(new T.CylinderGeometry(0.26, 0.3, 0.3, 12), grn); neck.position.y = 2.25; g.add(neck);
-      // cabeza ancha y baja + hocico
-      const head = H(outline(cmesh(new T.SphereGeometry(0.85, 26, 20), grn), 1.04)); head.position.set(0, 2.82, 0.0); head.scale.set(1.25, 0.88, 1.05);
-      const snout = H(outline(cmesh(new T.SphereGeometry(0.62, 22, 16), grn), 1.04)); snout.position.set(0.05, 2.66, 0.48); snout.scale.set(1.35, 0.7, 0.92);
-      // labios gruesos, muy anchos (de lado a lado del hocico) con la raya oscura en medio
-      const lipU = H(outline(cmesh(new T.SphereGeometry(0.5, 24, 12), lip), 1.08)); lipU.position.set(0.08, 2.58, 0.95); lipU.scale.set(1.5, 0.27, 0.45);
-      const lipL = H(outline(cmesh(new T.SphereGeometry(0.46, 24, 12), lip), 1.08)); lipL.position.set(0.05, 2.43, 0.9); lipL.scale.set(1.4, 0.24, 0.42);
-      const seam = H(cmesh(new T.BoxGeometry(1.45, 0.025, 0.05), lipD)); seam.position.set(0.07, 2.495, 1.01);
-      // jorobas de los ojos encima de la cabeza
-      [-0.4, 0.4].forEach(sx => {
-        const hump = H(outline(cmesh(new T.SphereGeometry(0.42, 20, 16), grn), 1.05)); hump.position.set(sx, 3.18, 0.3); hump.scale.set(1.05, 0.85, 1.0);
-      });
-      // ojos: panel curvo delante de las jorobas con los ojos dibujados como en el meme
-      const eyes = H(new T.Mesh(new T.SphereGeometry(0.82, 32, 14, Math.PI / 2 - 0.82, 1.64, Math.PI / 2 - 0.5, 0.82),
-        new T.MeshBasicMaterial({ map: pepeEyesTex, transparent: true, alphaTest: 0.35, side: T.DoubleSide })));
-      eyes.position.set(0, 3.0, 0.08); eyes.scale.set(1.08, 1.0, 1.0);
+      // cabeza ancha con la cara pintada encima (ojos y labios del meme) y las dos jorobas de los ojos arriba
+      const head = H(outline(cmesh(new T.SphereGeometry(0.85, 32, 24), grn), 1.035)); head.position.set(0, 2.85, 0.02); head.scale.set(1.28, 0.9, 1.05);
+      const face = H(new T.Mesh(new T.SphereGeometry(0.862, 40, 24, Math.PI / 2 - 0.95, 1.9, 0.62, 1.32),
+        new T.MeshBasicMaterial({ map: pepeFaceTex, transparent: true, alphaTest: 0.3, polygonOffset: true, polygonOffsetFactor: -2 })));
+      head.add(face);
+      const muzzle = H(cmesh(new T.SphereGeometry(0.6, 22, 14), grn)); muzzle.position.set(0, 2.62, 0.32); muzzle.scale.set(1.25, 0.55, 0.85); // papada/hocico bajo los labios
+      [-0.42, 0.42].forEach(sx => { const hump = H(outline(cmesh(new T.SphereGeometry(0.4, 20, 16), grn), 1.05)); hump.position.set(sx, 3.42, -0.05); hump.scale.set(1.05, 0.75, 0.9); });
       // manga larga azul y manos verdes
       [-0.62, 0.62].forEach(sx => { const a = addLimb(g, sx * 1.1, 1.45, 0, 0.16, 1.25, shirt); a.rotation.z = sx > 0 ? 0.1 : -0.1;
         const hnd = cmesh(new T.SphereGeometry(0.18, 10, 8), grn); hnd.position.set(0, -1.3, 0); hnd.scale.set(1, 1.1, 1.2); a.add(hnd); });
@@ -1439,8 +1454,8 @@
   let yaw = Math.PI, pitch = 0, recoilPitch = 0;
   const keys = {};
   let running = false, firing = false, nextShot = 0, score = 0, deaths = 0, thirdPerson = false, ads = false;
-  let curWeapon = 'rifle', reloading = false, reloadEnd = 0;
-  const ammo = { rifle: { mag: 30 }, shotgun: { mag: 7 }, sniper: { mag: 5 } };
+  let curWeapon = 'rifle', reloading = false, reloadEnd = 0, mgSpin = 0;
+  const ammo = { rifle: { mag: 30 }, shotgun: { mag: 7 }, sniper: { mag: 5 }, minigun: { mag: 150 } };
 
   function updateHealth() {
     const pct = Math.max(0, player.hp) / MAXHP * 100;
@@ -1518,6 +1533,16 @@
       g.add(place(cmesh(new T.BoxGeometry(0.09, 0.08, 0.16), wood), 0, -0.01, -0.22));
       g.add(place(cmesh(new T.BoxGeometry(0.08, 0.13, 0.22), wood), 0, -0.04, 0.2));
       gunBaseZ = -0.66;
+    } else if (type === 'minigun') { // 6 cañones que giran, cuerpo, asa y caja de munición
+      const br = new T.Group(); br.position.set(0, 0.0, -0.36);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; br.add(place(cmesh(new T.CylinderGeometry(0.016, 0.016, 0.6, 6), dark, {}), Math.cos(a) * 0.045, Math.sin(a) * 0.045, -0.1, Math.PI / 2, 0, 0)); }
+      br.add(place(cmesh(new T.CylinderGeometry(0.075, 0.075, 0.05, 12), metal, {}), 0, 0, -0.32, Math.PI / 2, 0, 0)); br.add(place(cmesh(new T.CylinderGeometry(0.075, 0.075, 0.05, 12), metal, {}), 0, 0, 0.12, Math.PI / 2, 0, 0));
+      g.add(br); g.userData.barrels = br;
+      g.add(place(cmesh(new T.CylinderGeometry(0.1, 0.1, 0.36, 12), metal, {}), 0, 0, 0.0, Math.PI / 2, 0, 0));
+      g.add(place(cmesh(new T.BoxGeometry(0.06, 0.16, 0.08), dark), 0, -0.14, 0.08));
+      g.add(place(cmesh(new T.BoxGeometry(0.03, 0.12, 0.2), dark), 0, 0.14, -0.02));
+      g.add(place(cmesh(new T.BoxGeometry(0.16, 0.15, 0.2), 0x3a4a2a), -0.14, -0.08, 0.05));
+      gunBaseZ = -0.62;
     } else { // sniper
       g.add(place(cmesh(new T.CylinderGeometry(0.022, 0.022, 0.75, 8), dark, {}), 0, 0.0, -0.5, Math.PI / 2, 0, 0));
       g.add(place(cmesh(new T.BoxGeometry(0.085, 0.11, 0.5), 0x24402f), 0, -0.02, -0.08));
@@ -1527,18 +1552,18 @@
       g.add(place(cmesh(new T.BoxGeometry(0.08, 0.12, 0.26), 0x24402f), 0, -0.04, 0.24));
       gunBaseZ = -0.74;
     }
-    const tipZ = type === 'sniper' ? -0.87 : (type === 'shotgun' ? -0.68 : -0.58);
+    const tipZ = type === 'sniper' ? -0.87 : (type === 'shotgun' ? -0.68 : (type === 'minigun' ? -0.78 : -0.58));
     flashMesh = buildFlash(); flashMesh.position.set(0, 0.01, tipZ); g.add(flashMesh);
     // cargador (se anima al recargar)
     const mag = new T.Group(); mag.add(cmesh(new T.BoxGeometry(0.055, type === 'shotgun' ? 0.04 : 0.17, type === 'shotgun' ? 0.09 : 0.08), type === 'shotgun' ? 0xb8402f : 0x16181d));
-    mag.position.set(0, type === 'shotgun' ? -0.08 : -0.15, type === 'sniper' ? 0.0 : (type === 'shotgun' ? -0.18 : -0.02)); if (type === 'shotgun') mag.visible = false; g.add(mag);
+    mag.position.set(type === 'minigun' ? -0.14 : 0, type === 'shotgun' ? -0.08 : (type === 'minigun' ? -0.2 : -0.15), type === 'sniper' ? 0.0 : (type === 'shotgun' ? -0.18 : (type === 'minigun' ? 0.05 : -0.02))); if (type === 'shotgun') mag.visible = false; g.add(mag);
     g.userData.mag = mag; g.userData.magBase = mag.position.clone();
     // brazos en primera persona: mano derecha en la empuñadura, izquierda en el guardamanos
     const st = ARM_STYLE[selectedChar] || ARM_STYLE.wojak, sleeve = st[0], skin = st[1]; // brazos del color de la skin elegida
     const arm = (hand, elbow, shoulder) => { const a = new T.Group();
       a.add(limbBetween(hand, elbow, 0.045, skin)); a.add(limbBetween(elbow, shoulder, 0.06, sleeve));
       const h = cmesh(new T.BoxGeometry(0.075, 0.075, 0.11), skin); h.position.copy(hand); a.add(h); return a; };
-    const gripZ = type === 'sniper' ? 0.04 : (type === 'shotgun' ? 0.16 : 0.06), foreZ = type === 'sniper' ? -0.32 : (type === 'shotgun' ? -0.25 : -0.28);
+    const gripZ = type === 'sniper' ? 0.04 : (type === 'shotgun' ? 0.16 : (type === 'minigun' ? 0.1 : 0.06)), foreZ = type === 'sniper' ? -0.32 : (type === 'shotgun' ? -0.25 : (type === 'minigun' ? -0.05 : -0.28));
     g.add(arm(new T.Vector3(0.02, -0.12, gripZ), new T.Vector3(0.12, -0.26, 0.3), new T.Vector3(0.18, -0.34, 0.62)));
     const left = new T.Group(); left.add(arm(new T.Vector3(-0.02, -0.06, foreZ), new T.Vector3(-0.2, -0.24, -0.05), new T.Vector3(-0.32, -0.36, 0.45))); g.add(left);
     g.userData.left = left;
@@ -1560,6 +1585,12 @@
       g.add(place(cmesh(new T.BoxGeometry(0.16, 0.16, 0.95), metal), 0, 0, 0.1));
       g.add(place(cmesh(new T.CylinderGeometry(0.05, 0.05, 0.5, 8), dark, {}), 0, 0.04, 0.55, Math.PI / 2, 0, 0));
       g.add(place(cmesh(new T.BoxGeometry(0.13, 0.17, 0.42), wood), 0, -0.03, -0.3));
+    } else if (type === 'minigun') {
+      const br = new T.Group(); br.position.set(0, 0, 0.55);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; br.add(place(cmesh(new T.CylinderGeometry(0.03, 0.03, 0.9, 6), dark, {}), Math.cos(a) * 0.08, Math.sin(a) * 0.08, 0, Math.PI / 2, 0, 0)); }
+      g.add(br); g.userData.barrels = br;
+      g.add(place(cmesh(new T.CylinderGeometry(0.17, 0.17, 0.55, 12), metal, {}), 0, 0, -0.1, Math.PI / 2, 0, 0));
+      g.add(place(cmesh(new T.BoxGeometry(0.26, 0.24, 0.3), 0x3a4a2a), -0.2, -0.14, -0.05));
     } else if (type === 'sniper') {
       g.add(place(cmesh(new T.BoxGeometry(0.14, 0.17, 0.75), 0x24402f), 0, 0, 0.05));
       g.add(place(cmesh(new T.CylinderGeometry(0.04, 0.04, 0.8, 8), dark, {}), 0, 0.01, 0.65, Math.PI / 2, 0, 0));
@@ -1580,7 +1611,7 @@
     if (charGroup.userData.gunType === type) return;
     charGroup.userData.gunType = type;
     while (h.children.length) h.remove(h.children[0]);
-    h.add(buildWorldGun(type));
+    const wg = buildWorldGun(type); h.add(wg); h.userData.barrels = wg.userData.barrels || null;
   }
 
   function setWeapon(type) {
@@ -1604,7 +1635,7 @@
       if (pos) { const d = camera.position.distanceTo(pos); vol = Math.pow(Math.max(0, 1 - d / 160), 1.6); if (vol < 0.02) return;
         const rel = pos.clone().sub(camera.position); const right = new T.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)); pan = Math.max(-1, Math.min(1, rel.normalize().dot(right)));
         muff = Math.max(0.25, 1 - d / 120); }
-      const dur = type === 'sniper' ? 0.28 : (type === 'shotgun' ? 0.2 : 0.12);
+      const dur = type === 'sniper' ? 0.28 : (type === 'shotgun' ? 0.2 : (type === 'minigun' ? 0.07 : 0.12));
       const buf = actx.createBuffer(1, actx.sampleRate * dur, actx.sampleRate);
       const d = buf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
@@ -1813,7 +1844,7 @@
     if (keys['KeyS']) move.sub(forward);
     if (keys['KeyD']) move.add(right);
     if (keys['KeyA']) move.sub(right);
-    if (move.lengthSq() > 0) move.normalize().multiplyScalar(ads ? speed * 0.55 : speed);
+    if (move.lengthSq() > 0) move.normalize().multiplyScalar((ads ? speed * 0.55 : speed) * (curWeapon === 'minigun' && (firing || mgSpin > 0.3) ? WEAPONS.minigun.slow : 1));
     if (player.dead) move.set(0, 0, 0);
     const ox = player.pos.x, oz = player.pos.z;
     player.pos.x += move.x * dt; player.pos.z += move.z * dt;
@@ -1898,7 +1929,12 @@
     if (avatar) { avatar.position.set(player.pos.x, player.pos.y, player.pos.z); avatar.rotation.y = yaw + Math.PI; avatar.visible = thirdPerson; }
 
     // disparo automático
-    if (firing && WEAPONS[curWeapon].auto && !player.dead) { nextShot -= dt; if (nextShot <= 0) { fire(); nextShot = WEAPONS[curWeapon].rate; } }
+    // minigun: los cañones tienen que girar un momento antes de disparar
+    const spinning = curWeapon === 'minigun' && (firing || keys['_spin']) && !player.dead && !reloading;
+    mgSpin = Math.max(0, Math.min(1, mgSpin + (spinning ? dt / WEAPONS.minigun.spin : -dt / 0.8)));
+    if (gunModel && gunModel.userData.barrels) gunModel.userData.barrels.rotation.z += dt * 40 * mgSpin;
+    if (avatar && avatar.userData.gunHolder && avatar.userData.gunHolder.userData.barrels) avatar.userData.gunHolder.userData.barrels.rotation.z += dt * 40 * mgSpin;
+    if (firing && WEAPONS[curWeapon].auto && !player.dead && (curWeapon !== 'minigun' || mgSpin >= 1)) { nextShot -= dt; if (nextShot <= 0) { fire(); nextShot = WEAPONS[curWeapon].rate; } }
 
     // red: enviar mi estado e interpolar a todos los rivales
     if (net.active) {
@@ -2018,11 +2054,11 @@
 
   // ---------- UI ----------
   const toolbar = document.getElementById('toolbar');
-  const TOOLKEY = { 1: 'rifle', 2: 'shotgun', 3: 'sniper' };
-  const WLABEL = { rifle: 'Rifle', shotgun: 'Shotgun', sniper: 'Sniper' };
+  const TOOLKEY = { 1: 'rifle', 2: 'shotgun', 3: 'sniper', 4: 'minigun' };
+  const WLABEL = { rifle: 'Rifle', shotgun: 'Shotgun', sniper: 'Sniper', minigun: 'Minigun' };
   const slots = {};
-  const DMGTXT = { rifle: '28 dmg', shotgun: '13×9', sniper: '125 dmg' };
-  for (let i = 1; i <= 3; i++) {
+  const DMGTXT = { rifle: '28 dmg', shotgun: '13×9', sniper: '125 dmg', minigun: '13 dmg' };
+  for (let i = 1; i <= 4; i++) {
     const w = TOOLKEY[i];
     const el = document.createElement('div'); el.className = 'slot';
     el.innerHTML = '<div class="key">' + i + '</div><div class="name">' + WLABEL[w] + '</div><div class="dmg">' + DMGTXT[w] + '</div>';
@@ -2348,6 +2384,7 @@
     if (e.code === 'Digit1') setWeapon('rifle');
     if (e.code === 'Digit2') setWeapon('shotgun');
     if (e.code === 'Digit3') setWeapon('sniper');
+    if (e.code === 'Digit4') setWeapon('minigun');
     if (e.code === 'KeyR') reload();
     if (e.code === 'KeyV') { thirdPerson = !thirdPerson; document.getElementById('viewmode').textContent = 'View: ' + (thirdPerson ? '3rd person' : '1st person'); }
   });
@@ -2478,7 +2515,7 @@
         if (lim > 0.05 || Math.abs(u.body.rotation.z) > 0.01 || u.body.position.y > 0.01) R.anim.animated++; }
       if (R.anim.moving > 400 && R.anim.animated / R.anim.moving < 0.6) { issue('no_walk_anim', player.pos, (100 * R.anim.animated / R.anim.moving | 0) + '%'); R.anim.moving = R.anim.animated = 0; }
       // cambiar de arma de vez en cuando
-      weaponT -= dt; if (weaponT <= 0) { weaponT = 10 + Math.random() * 10; setWeapon(['rifle', 'shotgun', 'sniper'][(Math.random() * 3) | 0]); }
+      weaponT -= dt; if (weaponT <= 0) { weaponT = 10 + Math.random() * 10; setWeapon(['rifle', 'shotgun', 'sniper', 'minigun'][(Math.random() * 4) | 0]); }
       // combate
       const foe = task && task.kind === 'stairs' ? null : visibleFoe();
       if (foe) {
