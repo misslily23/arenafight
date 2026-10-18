@@ -1122,7 +1122,7 @@
     mblock(-4.2, -1.93, -6.58, -4.81, 2, 'brick', 'WN');    // L
     mblock(-0.64, 1.2, -6.85, -6.31, 2, 'stone', 'N', { stairs: false }); // pequeño
     mblock(-1.32, 2.41, -8.54, -6.85, 6, 'brickT', 'SN', { baseMat: TM.stoneL });   // M torre de ladrillo
-    mblock(-3.69, -2.6, -12.0, -8.44, 1, 'tan', 'EN');      // O
+    mblock(-3.69, -2.6, -12.4, -10.85, 1, 'tan', 'EN');     // O (al sur de la calle, ya no la invade)
     mblock(5.8, 8.1, -7.19, -4.81, 3, 'stone', 'WN');       // Q
     // R: ladrillo en cruz (cuerpo central + brazos E/O comunicados), base crema
     mblock(-10.2, -9.05, -13.63, -11.15, 4, 'brickT', 'NS', { baseMat: TM.cream, fh: 3.9 * KS, openSides: 'EW', openSpan: [tz(-11.9), tz(-12.9)] });
@@ -2234,7 +2234,7 @@
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
     match.limitSec = +(Q.get('secs') || 60); R.rounds = [];
-    window.__botDbg = { setView: (y, p) => { yaw = y; pitch = p; }, avatar: () => avatar, setChar: c => { selectedChar = c; setAvatar(c); }, terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
+    window.__botDbg = { zones: () => ({ roads: roadZones.slice(), blds: flatZones.slice() }), setView: (y, p) => { yaw = y; pitch = p; }, avatar: () => avatar, setChar: c => { selectedChar = c; setAvatar(c); }, terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
     const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
     const issue = (kind, pos, extra) => {
       const key = kind + '@' + Math.round(pos.x / 4) * 4 + ',' + Math.round(pos.y) + ',' + Math.round(pos.z / 4) * 4;
