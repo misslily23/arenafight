@@ -1435,6 +1435,15 @@
     }
     return hit;
   }
+  // ¿hay un techo (caja sólida) cuya cara inferior esté entre y0 e y1 sobre el jugador? devuelve su altura o null
+  function ceilingAbove(x, z, y0, y1) {
+    let best = null; const r = PLAYER_R * 0.8;
+    for (const s of solids) { const b = boxDims(s), q = s.position, bot = q.y - b.hh;
+      if (bot < y0 || bot > y1) continue;
+      if (Math.abs(x - q.x) > b.hw + r || Math.abs(z - q.z) > b.hd + r) continue;
+      if (best === null || bot < best) best = bot; }
+    return best;
+  }
   function resolveWalls(prev) { collideCircle(player.pos, PLAYER_R, prev); }
 
   // ¿tiene el bot línea de visión al jugador? (sin edificios en medio)
@@ -1478,7 +1487,9 @@
     // nunca quedarse metido dentro de la ladera
     if (terrainFn) { const th = terrainH(player.pos.x, player.pos.z); if (th > player.pos.y && th <= player.pos.y + STEP + 0.4) { player.pos.y = th; if (player.vel.y < 0) player.vel.y = 0; } }
 
-    player.vel.y -= GRAVITY * dt; player.pos.y += player.vel.y * dt;
+    player.vel.y -= GRAVITY * dt;
+    { const oy = player.pos.y; player.pos.y += player.vel.y * dt;
+      if (player.vel.y > 0) { const c = ceilingAbove(player.pos.x, player.pos.z, oy + PLAYER_H - 0.05, player.pos.y + PLAYER_H); if (c !== null) { player.pos.y = c - PLAYER_H; player.vel.y = 0; } } } // techo: la cabeza no atraviesa forjados
     const gh = groundHeightAt(player.pos.x, player.pos.y, player.pos.z);
     if (player.pos.y <= gh + 0.02) { player.pos.y = gh; player.vel.y = 0; player.grounded = true; }
     else player.grounded = false;
@@ -2030,6 +2041,8 @@
       if (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 1.0) issue('under_terrain', player.pos);
       if (player.pos.y < -1) issue('fell_below_map', player.pos);
       if (insideSolid(player.pos)) issue('inside_solid', player.pos, task ? task.kind : '');
+      { const hy = player.pos.y + PLAYER_H - 0.1; for (const sd of solids) { const b = boxDims(sd), q = sd.position; if (b.hh > 0.4) continue;
+        if (Math.abs(player.pos.x - q.x) < b.hw && Math.abs(player.pos.z - q.z) < b.hd && Math.abs(hy - q.y) < b.hh) { issue('head_in_ceiling', player.pos); break; } } }
       // ¿ha cruzado una ventana entre este frame y el anterior?
       if (prevP) for (const wc of winCols) { const u = wc.userData, q = wc.position;
         if (Math.abs(q.x - player.pos.x) > 3 + u.hw || Math.abs(q.z - player.pos.z) > 3 + u.hd) continue;
@@ -2064,7 +2077,7 @@
           issue('stairs_fail', task.lo, 'llegó a y=' + player.pos.y.toFixed(1) + ' de ' + task.hi.y.toFixed(1)); task = null; return; }
       } else if (dist < 2 || taskT > 30) { task = null; return; }
       face(tgt, dt, 4);
-      keys['KeyW'] = true; keys['ShiftLeft'] = task.kind === 'roam';
+      keys['KeyW'] = true; if (Math.random() < dt * 0.5) keys['Space'] = true; // saltar de vez en cuando (prueba techos) keys['ShiftLeft'] = task.kind === 'roam';
       // atasco
       moveCheckT += dt;
       if (moveCheckT > 1.5) {
