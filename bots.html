@@ -3,45 +3,52 @@
 <style>
   html, body { margin: 0; height: 100%; background: #0d1520; color: #dce7f2; font: 13px system-ui, sans-serif; }
   #wrap { display: flex; height: 62%; gap: 4px; }
-  iframe { flex: 1; border: 0; background: #000; }
-  #bar { padding: 6px 10px; display: flex; gap: 10px; align-items: center; }
+  iframe { flex: 1; min-width: 0; border: 0; background: #000; }
+  #bar { padding: 6px 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   button { background: #2d5f7a; color: #fff; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 700; }
   pre { margin: 0 10px; height: calc(38% - 44px); overflow: auto; background: #08101a; padding: 8px; border-radius: 6px; font-size: 11px; }
 </style></head>
 <body>
-<div id="wrap"><iframe id="a"></iframe><iframe id="b"></iframe></div>
-<div id="bar"><b>2 bots online (anfitrión + invitado)</b> <span id="st">arrancando…</span>
-  <button id="copy">Copiar informe</button> <label>mapa <select id="map"><option>city</option><option>desert</option></select></label> <button id="restart">Reiniciar</button></div>
+<div id="wrap"></div>
+<div id="bar"><b id="title"></b> <span id="st">arrancando…</span>
+  <button id="copy">Copiar informe</button>
+  <label>mapa <select id="map"><option>city</option><option>desert</option></select></label>
+  <label>bots <select id="n"><option>2</option><option>3</option><option>4</option></select></label>
+  <button id="restart">Reiniciar</button></div>
 <pre id="out"></pre>
 <script>
-  const A = document.getElementById('a'), B = document.getElementById('b'), st = document.getElementById('st'), out = document.getElementById('out');
-  const map = new URLSearchParams(location.search).get('map') || 'city';
-  const Q_REJOIN = new URLSearchParams(location.search).get('rejoin') !== '0';
-  document.getElementById('map').value = map;
-  document.getElementById('restart').onclick = () => { location.search = '?map=' + document.getElementById('map').value; };
-  A.src = 'index.html?bot=1&host=1&map=' + map;
+  const Q = new URLSearchParams(location.search);
+  const map = Q.get('map') || 'city', N = Math.max(2, Math.min(4, +(Q.get('n') || 2))), REJOIN = Q.get('rejoin') !== '0';
+  const st = document.getElementById('st'), out = document.getElementById('out'), wrap = document.getElementById('wrap');
+  document.getElementById('map').value = map; document.getElementById('n').value = String(N);
+  document.getElementById('title').textContent = N + ' bots online (anfitrión + ' + (N - 1) + ' invitados)';
+  document.getElementById('restart').onclick = () => { location.search = '?map=' + document.getElementById('map').value + '&n=' + document.getElementById('n').value; };
+  const F = [];
+  for (let i = 0; i < N; i++) { const f = document.createElement('iframe'); wrap.appendChild(f); F.push(f); }
+  F[0].src = 'index.html?bot=1&host=1&map=' + map + '&n=' + N;
+  const joinSrc = (i, r) => 'index.html?bot=1&join=' + window.__code + '&map=' + map + '&n=' + N + '&r=' + (r || 0) + '_' + i;
   const iv = setInterval(() => {
-    const code = A.contentWindow && A.contentWindow.__botRoomCode;
-    if (code) { clearInterval(iv); st.textContent = 'sala ' + code; B.src = 'index.html?bot=1&join=' + code + '&map=' + map; window.__code = code; }
+    const code = F[0].contentWindow && F[0].contentWindow.__botRoomCode;
+    if (code) { clearInterval(iv); window.__code = code; st.textContent = 'sala ' + code; F.slice(1).forEach((f, i) => setTimeout(() => { f.src = joinSrc(i + 1); }, 1500 * i)); }
   }, 500);
-  // prueba de reconexión: cada 2 partidas del anfitrión, el invitado se sale y vuelve a entrar
+  // prueba de reconexión: cada 2 partidas del anfitrión, el último invitado se sale y vuelve a entrar
   let lastRejoin = 0; window.__rejoins = 0;
   setInterval(() => {
-    const ra = A.contentWindow && A.contentWindow.__botReport ? A.contentWindow.__botReport() : null;
-    if (!ra || !window.__code || !Q_REJOIN) return;
+    const ra = F[0].contentWindow && F[0].contentWindow.__botReport ? F[0].contentWindow.__botReport() : null;
+    if (!ra || !window.__code || !REJOIN) return;
     const n = (ra.rounds || []).length;
-    if (n >= lastRejoin + 2) { lastRejoin = n; window.__rejoins++; st.textContent = 'sala ' + window.__code + ' · reconexión ' + window.__rejoins; B.src = 'index.html?bot=1&join=' + window.__code + '&map=' + map + '&r=' + window.__rejoins; }
+    if (n >= lastRejoin + 2) { lastRejoin = n; window.__rejoins++; st.textContent = 'sala ' + window.__code + ' · reconexión ' + window.__rejoins; F[N - 1].src = joinSrc(N - 1, window.__rejoins); }
   }, 2000);
   function report() {
-    const ra = A.contentWindow && A.contentWindow.__botReport ? A.contentWindow.__botReport() : null;
-    const rb = B.contentWindow && B.contentWindow.__botReport ? B.contentWindow.__botReport() : null;
-    return { host: ra, join: rb };
+    const r = {};
+    F.forEach((f, i) => { r[i === 0 ? 'host' : 'join' + (N > 2 ? i : '')] = f.contentWindow && f.contentWindow.__botReport ? f.contentWindow.__botReport() : null; });
+    return r;
   }
   setInterval(() => {
     const r = report(), lines = [];
-    for (const k of ['host', 'join']) { const x = r[k]; if (!x) { lines.push(k + ': (sin datos)'); continue; }
+    for (const k in r) { const x = r[k]; if (!x) { lines.push(k + ': (sin datos)'); continue; }
       const iss = Object.values(x.issues).sort((a, b) => b.n - a.n);
-      lines.push(`== ${k} ==  partidas ${(x.rounds || []).length} | fps min ${x.fps.min} | escaleras ${x.stairs.ok}/${x.stairs.tested} | disparos ${x.combat.shots} impactos ${x.combat.hits} kills ${x.combat.kills} muertes ${x.combat.deaths} | rivales vistos ${x.net.maxRemotes} | errores ${x.errors.length}`);
+      lines.push(`== ${k} ==  partidas ${(x.rounds || []).length} | fps min ${x.fps.min} | escaleras ${x.stairs.ok}/${x.stairs.tested} | disparos ${x.combat.shots} impactos ${x.combat.hits} kills ${x.combat.kills} muertes ${x.combat.deaths} | rivales ${x.net.cur || 0}/${N - 1} | errores ${x.errors.length}`);
       for (const i of iss.slice(0, 12)) lines.push(`  [${i.kind}] x${i.n} en ${i.x},${i.y},${i.z} ${i.extra}`);
       for (const e of x.errors.slice(-5)) lines.push('  ERROR ' + e);
     }

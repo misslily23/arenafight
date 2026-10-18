@@ -751,7 +751,7 @@
         const door = i === dIdx || arch || (openAll && inSpan), dTop = arch ? Math.max(2.95, fh - 0.8 - winW / 2) : 3.4; // siempre cabe el jugador (2.7)
         if (door) P(w0, w1, yb + dTop, yb + fh, band);
         else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + fh, band);
-          winCols.push(ax === 'x' ? collider((w0 + w1) / 2, yb + (sill + head) / 2, fixed, w1 - w0, head - sill, t) : collider(fixed, yb + (sill + head) / 2, (w0 + w1) / 2, t, head - sill, w1 - w0)); }
+          winCols.push(ax === 'x' ? collider((w0 + w1) / 2, yb + head / 2, fixed, w1 - w0, head, t) : collider(fixed, yb + head / 2, (w0 + w1) / 2, t, head, w1 - w0)); } // del suelo al dintel: no se puede subir al alféizar
         if (arch) { // arco de medio punto
           const ax2 = ax === 'x'; tArch(ax2 ? c : fixed, yb + dTop, ax2 ? fixed : c, winW / 2 + 0.05, ax2, o.frame || M.trim);
           continue;
@@ -1174,19 +1174,23 @@
     }
   }
   // punto de aparición lejos de los rivales (evita que te maten nada más aparecer)
+  const spawnRay = new T.Raycaster();
   function safeSpawn() {
     const foes = net.active ? Object.values(remotes).filter(r => !r.dead).map(r => r.group.position) : enemies.map(e => e.position);
     let best = null, bd = -1;
     for (let i = 0; i < 14; i++) {
       const p = enemySpawnPos(); if (cityBounds && (p.x < cityBounds[0] + 2 || p.x > cityBounds[1] - 2 || p.z < cityBounds[2] + 2 || p.z > cityBounds[3] - 2)) continue;
-      let d = 1e9; for (const f of foes) d = Math.min(d, Math.hypot(f.x - p.x, f.z - p.z));
-      if (d > bd) { bd = d; best = p; }
+      let d = 1e9, seen = false;
+      for (const f of foes) { const dist = Math.hypot(f.x - p.x, f.z - p.z); d = Math.min(d, dist);
+        if (!seen && dist < 90) { const o = new T.Vector3(f.x, f.y + 1.6, f.z), dir = new T.Vector3(p.x, 1.6, p.z).sub(o); spawnRay.set(o, dir.clone().normalize()); spawnRay.far = dir.length(); if (!spawnRay.intersectObjects(solids, false).length) seen = true; } }
+      const score = d + (seen ? 0 : 60); // mejor un sitio que ningún rival vea
+      if (score > bd) { bd = score; best = p; }
     }
     return best || spawnPoint.clone();
   }
   function respawnPlayer() {
     player.dead = false; player.hp = MAXHP; player.lastAttacker = null;
-    player.pos.copy(safeSpawn()); player.vel.set(0, 0, 0); player.protect = 2.0; updateHealth();
+    player.pos.copy(safeSpawn()); player.vel.set(0, 0, 0); player.protect = 2.5; updateHealth();
   }
 
   // ---------- Avatar (3ª persona) ----------
@@ -1361,7 +1365,7 @@
       if (w.spread) { dir.x += (Math.random() - 0.5) * w.spread; dir.y += (Math.random() - 0.5) * w.spread; dir.z += (Math.random() - 0.5) * w.spread; dir.normalize(); }
       raycaster.set(origin, dir);
       const targets = worldSolids.slice();
-      if (net.active) { for (const id in remotes) for (const m of remotes[id].meshes) targets.push(m); }
+      if (net.active) { for (const id in remotes) { const rp = remotes[id]; if (rp.dead || !rp.group.visible) continue; for (const m of rp.meshes) targets.push(m); } } // los muertos (invisibles) no reciben ni tapan balas
       else for (const e of enemies) for (const m of e.userData.meshes) targets.push(m);
       const hits = raycaster.intersectObjects(targets, false);
       let end = origin.clone().add(dir.clone().multiplyScalar(300));
@@ -1923,7 +1927,8 @@
   (function testBot() {
     const Q = new URLSearchParams(location.search);
     if (!Q.has('bot')) return;
-    const R = { started: Date.now(), mode: Q.has('host') ? 'host' : Q.has('join') ? 'join' : 'solo', map: Q.get('map') || 'city',
+    const EXPECT = +(Q.get('n') || 2);
+    const R = { netT0: performance.now(), started: Date.now(), mode: Q.has('host') ? 'host' : Q.has('join') ? 'join' : 'solo', map: Q.get('map') || 'city',
       errors: [], issues: {}, stairs: { tested: 0, ok: 0, fail: [] }, combat: { shots: 0, hits: 0, kills: 0, deaths: 0 },
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
@@ -2000,7 +2005,8 @@
       const eye = V(player.pos.x, player.pos.y + EYE, player.pos.z); let best = null, bd = 70;
       const cands = net.active ? Object.values(remotes).filter(r => !r.dead && r.group.visible).map(r => r.group.position) : enemies.filter(e => e.visible).map(e => e.position);
       if (net.active) { R.net.maxRemotes = Math.max(R.net.maxRemotes, cands.length); if (cands.length) R.net.remotesSeen++;
-        R.net.cur = Object.keys(remotes).length; if (R.net.cur > 1) issue('ghost_player', player.pos, R.net.cur + ' remotos'); }
+        R.net.cur = Object.keys(remotes).length; if (R.net.cur > EXPECT - 1) issue('ghost_player', player.pos, R.net.cur + ' remotos');
+        if (R.net.cur < EXPECT - 1 && performance.now() - R.netT0 > 20000) { if (!R.missSince) R.missSince = performance.now(); else if (performance.now() - R.missSince > 10000) { issue('missing_player', player.pos, R.net.cur + '/' + (EXPECT - 1)); R.missSince = 0; } } else R.missSince = 0; }
       for (const p of cands) { const tgt = V(p.x, p.y + 1.8, p.z), d = tgt.distanceTo(eye); if (d > bd) continue;
         ray.set(eye, tgt.clone().sub(eye).normalize()); ray.far = d - 0.5; if (ray.intersectObjects(solids, false).length) continue; best = tgt; bd = d; }
       return best;
@@ -2042,7 +2048,8 @@
         pitch += (Math.atan2(foe.y - eye, hd) - pitch) * Math.min(1, dt * 8);
         strafeT -= dt; if (strafeT <= 0) { strafeT = 0.6 + Math.random(); strafe = -strafe; }
         keys[strafe > 0 ? 'KeyD' : 'KeyA'] = true;
-        if (err < 0.08) { if (WEAPONS[curWeapon].auto) firing = true; else if (Math.random() < dt * 2.5) fire(); }
+        const tol = Math.atan2(0.5, Math.max(1, hd)); // ~medio cuerpo de margen según la distancia
+        if (err < tol && Math.abs(Math.atan2(foe.y - eye, hd) - pitch) < tol * 1.5) { if (WEAPONS[curWeapon].auto) firing = true; else if (Math.random() < dt * 2.5) fire(); }
         return;
       }
       pitch *= 0.9;
