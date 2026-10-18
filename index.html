@@ -309,11 +309,20 @@
     x.lineWidth = 5; x.strokeStyle = '#4a1c0c'; x.beginPath(); x.moveTo(95, 412); x.bezierCurveTo(200, 402, 330, 398, 440, 406); x.stroke();
     x.lineWidth = 5; x.strokeStyle = '#1c3a12'; x.beginPath(); x.moveTo(60, 330); x.quadraticCurveTo(80, 300, 120, 310); x.stroke(); // pliegue de la mejilla
   }
+  function drawPillFace(x) { // 512x512: ojos cerrados en arco, sonrisa pequeña y mejillas rosas (cara serena)
+    x.clearRect(0, 0, 512, 512);
+    x.fillStyle = 'rgba(240,120,130,0.85)';
+    for (const cx of [128, 384]) { x.beginPath(); x.ellipse(cx, 300, 44, 28, 0, 0, Math.PI * 2); x.fill(); }
+    x.strokeStyle = '#2a2320'; x.lineCap = 'round'; x.lineWidth = 11;
+    for (const cx of [170, 342]) { x.beginPath(); x.arc(cx, 232, 40, 0.15 * Math.PI, 0.85 * Math.PI); x.stroke(); } // ojos cerrados (arco hacia abajo)
+    x.lineWidth = 9; x.beginPath(); x.arc(256, 300, 34, 0.18 * Math.PI, 0.82 * Math.PI); x.stroke();                      // sonrisa
+  }
   function drawChadChest(x) {
     x.clearRect(0, 0, 256, 256);
     x.fillStyle = '#111'; x.textAlign = 'center'; x.font = 'bold 50px Arial';
     x.fillText('STOP', 128, 92); x.fillText('BEING', 128, 150); x.fillText('POOR', 128, 208);
   }
+  const pillFaceTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; drawPillFace(c.getContext('2d')); const t = new T.CanvasTexture(c); t.anisotropy = 4; return t; })();
   const pepeFaceTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; drawPepeFace(c.getContext('2d')); const t = new T.CanvasTexture(c); t.anisotropy = 4; return t; })();
   const pepeEyesTex = (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 256; drawPepeEyes(c.getContext('2d')); const t = new T.CanvasTexture(c); t.anisotropy = 4; return t; })();
   const trollTex = faceTex(drawTroll), wojakTex = faceTex(drawWojak), chadTex = faceTex(drawChadChest);
@@ -410,6 +419,20 @@
         const ft = cmesh(new T.SphereGeometry(0.2, 10, 8), grn); ft.position.set(0, -0.86, 0.14); ft.scale.set(1.1, 0.55, 1.6); l.add(ft);
         const sole = cmesh(new T.BoxGeometry(0.42, 0.07, 0.68), sand); sole.position.set(0, -0.95, 0.14); l.add(sole);
         for (const zz of [0.0, 0.28]) { const st = cmesh(new T.BoxGeometry(0.44, 0.08, 0.1), sand); st.position.set(0, -0.84, zz); l.add(st); } });
+    } else if (type === 'pill') {
+      // Pastillita: cabeza de huevo color crema con cara serena pintada, túnica verde que cubre el cuerpo
+      const cream = 0xf4eedf, robe = 0x3f7d3a, robeD = 0x356b31;
+      const H = m => { g.add(m); g.userData.headMeshes.push(m); return m; };
+      const head = H(cmesh(new T.SphereGeometry(0.8, 32, 24), cream)); head.position.set(0, 2.75, 0); head.scale.set(0.95, 1.3, 0.9);
+      const face = new T.Mesh(new T.SphereGeometry(0.812, 40, 24, Math.PI / 2 - 0.9, 1.8, 1.05, 1.1),
+        new T.MeshBasicMaterial({ map: pillFaceTex, transparent: true, alphaTest: 0.3, polygonOffset: true, polygonOffsetFactor: -2 }));
+      head.add(face); g.userData.headMeshes.push(face);
+      const body = cmesh(new T.CylinderGeometry(0.62, 0.85, 1.55, 18), robe); body.position.y = 1.15; g.add(body);           // túnica
+      const collar = cmesh(new T.TorusGeometry(0.55, 0.12, 8, 20), robeD); collar.position.y = 1.9; collar.rotation.x = Math.PI / 2; g.add(collar);
+      [-0.66, 0.66].forEach(sx => { const a = addLimb(g, sx, 1.35, 0, 0.17, 1.2, robe); a.rotation.z = sx > 0 ? 0.15 : -0.15;  // mangas anchas
+        const hnd = cmesh(new T.SphereGeometry(0.16, 10, 8), cream); hnd.position.set(0, -1.22, 0); a.add(hnd); });
+      [-0.25, 0.25].forEach(sx => { const l = addLimb(g, sx, 0.25, 0, 0.17, 0.6, robeD);
+        const ft = cmesh(new T.SphereGeometry(0.19, 10, 8), cream); ft.position.set(0, -0.56, 0.1); ft.scale.set(1, 0.6, 1.4); l.add(ft); });
     } else if (type === 'troll') {
       const blk = 0x171717, wh = 0xf6f4ef;
       const torso = cmesh(new T.CylinderGeometry(0.36, 0.46, 1.5, 12), blk); torso.position.y = 1.35; g.add(torso);
@@ -463,6 +486,7 @@
     { id: 'wojak', emoji: '😐', name: 'Wojak', desc: 'I know that feel' },
     { id: 'chad', emoji: '😎', name: 'Alon', desc: 'Cap and shades' },
     { id: 'pepe', emoji: '🐸', name: 'Pepe', desc: 'Feels bad man' },
+    { id: 'pill', emoji: '💊', name: 'Lil Pill', desc: 'Inner peace' },
   ];
   let selectedChar = 'stick';
   let selectedMap = 'desert';
@@ -1571,7 +1595,7 @@
   }
   // cilindro entre dos puntos (para los brazos del arma en primera persona)
   // [parte de arriba del brazo, antebrazo/mano] de cada personaje (sacado de sus modelos)
-  const ARM_STYLE = { stick: [0xb8672d, 0xd68844], doge: [0xd99a4e, 0xf6e8cc], troll: [0x171717, 0x222222], wojak: [0xeee6da, 0xeee6da], chad: [0xd5b8a4, 0xd5b8a4], pepe: [0x1f42b0, 0x46862f] };
+  const ARM_STYLE = { stick: [0xb8672d, 0xd68844], doge: [0xd99a4e, 0xf6e8cc], troll: [0x171717, 0x222222], wojak: [0xeee6da, 0xeee6da], chad: [0xd5b8a4, 0xd5b8a4], pepe: [0x1f42b0, 0x46862f], pill: [0x3f7d3a, 0xf4eedf] };
   function limbBetween(a, b, r, color) {
     const d = b.clone().sub(a), m = cmesh(new T.CylinderGeometry(r, r * 1.1, d.length(), 8), color);
     m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); return m;
@@ -2143,7 +2167,7 @@
   const match = { limitKills: 15, limitSec: 240 };
   let matchStart = 0, matchEnded = false, matchTimeLeft = match.limitSec, boardList = [], boardSendT = 0;
   const board = {}; // host/offline: id -> {name, ch, kills}
-  const CHAR_EMOJI = { stick: '🪵', doge: '🐕', troll: '😈', wojak: '😐', chad: '😎', pepe: '🐸' };
+  const CHAR_EMOJI = { stick: '🪵', doge: '🐕', troll: '😈', wojak: '😐', chad: '😎', pepe: '🐸', pill: '💊' };
   function esc(s) { return (s || '').replace(/[<>&]/g, ''); }
   function registerKill(byId) {
     if (byId == null) return;
