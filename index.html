@@ -605,6 +605,15 @@
       sg.translate(px, py + 0.02, pz); batchAdd(TM.trim, sg);
     }
     ramps.push(collider(cx, cy, cz, w, 0.26, d, e));
+    const nb = Math.max(3, Math.ceil(run / 0.8));
+    for (let i = 0; i < nb; i++) {
+      const f0 = i / nb, f1 = (i + 1) / nb, top = y0 + rise * f0 - 0.3;
+      if (top - y0 < 0.25) continue;
+      const ax = x0 + dx * f0, az = z0 + dz * f0, bx = x0 + dx * f1, bz = z0 + dz * f1, hwid = width / 2;
+      const sx0 = Math.min(ax, bx) - (Math.abs(dz) >= Math.abs(dx) ? hwid : 0), sx1 = Math.max(ax, bx) + (Math.abs(dz) >= Math.abs(dx) ? hwid : 0);
+      const sz0 = Math.min(az, bz) - (Math.abs(dz) >= Math.abs(dx) ? 0 : hwid), sz1 = Math.max(az, bz) + (Math.abs(dz) >= Math.abs(dx) ? 0 : hwid);
+      solids.push(collider((sx0 + sx1) / 2, (y0 + top) / 2, (sz0 + sz1) / 2, sx1 - sx0, top - y0, sz1 - sz0));
+    }
   }
   // Bloque de edificio entrable de varias plantas: paredes con ventanas reales, forjados con hueco,
   // escaleras alternas (pozo A/B) hasta la azotea con antepecho.
@@ -714,7 +723,9 @@
       side('z', x1, z0, z1, yb, g && doors.includes('E'), bm || matEW, g, 'E');
     }
     if (o.corner) for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) tbox(cx - 0.45, 0, cz - 0.45, cx + 0.45, floors * fh + 0.3, cz + 0.45, o.corner, false);
-    for (let f = 1; f < floors; f++) tbox(x0 - 0.12, f * fh - 0.22, z0 - 0.12, x1 + 0.12, f * fh + 0.02, z1 + 0.12, band, false); // líneas de forjado
+    for (let f = 1; f < floors; f++) { const y0 = f * fh - 0.22, y1 = f * fh + 0.02, e = t / 2 + 0.12; // líneas de forjado (solo el borde de fachada)
+      tbox(x0 - 0.12, y0, z0 - 0.12, x1 + 0.12, y1, z0 + e - 0.12, band, false); tbox(x0 - 0.12, y0, z1 - e + 0.12, x1 + 0.12, y1, z1 + 0.12, band, false);
+      tbox(x0 - 0.12, y0, z0, x0 + e - 0.12, y1, z1, band, false); tbox(x1 - e + 0.12, y0, z0, x1 + 0.12, y1, z1, band, false); }
     tbox(x0 + t / 2, 0, z0 + t / 2, x1 - t / 2, 0.04, z1 - t / 2, M.wood, false);
     // escaleras y forjados
     const canStairs = o.stairs !== false && W >= 6.6 && D >= 7.2;
@@ -811,14 +822,14 @@
   // G: bloque de piedra beige con grandes arcos y cúpula baja + ala este baja con terraza y sombrillas
   function tBuildingG() {
     const M = TM, x0 = tx(-0.45), x1 = tx(1.75), z0 = tz(-1.35), z1 = tz(-4.45), fh = 4.4 * KS;
-    const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.sand, band: M.trim, doors: 'NS', arch: true, ac: 0 });
+    const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.sand, band: M.sand, doors: 'NS', arch: true, ac: 0 });
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, R = Math.min(x1 - x0, z1 - z0) / 2 - 0.6;
     tbox(cx - R, ry, cz - R, cx + R, ry + 0.9, cz + R, M.sand); // tambor
     const dome = new T.Mesh(new T.SphereGeometry(R, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), M.domeMat); dome.scale.y = 0.42; dome.position.set(cx, ry + 0.9, cz); dome.castShadow = true; mapGroup.add(dome);
     const lan = new T.Mesh(new T.CylinderGeometry(0.6, 0.8, 1.2, 8), M.sand); lan.position.set(cx, ry + 0.9 + R * 0.42 + 0.5, cz); mapGroup.add(lan);
     // ala este (1 planta) con terraza en la azotea
     const ex0 = x1, ex1 = tx(3.0);
-    const ey = tblock({ x0: ex0, x1: ex1, z0, z1, floors: 1, fh, mat: M.sand, band: M.trim, doors: 'E', arch: true, parapetH: 1.0, parapet: M.dark, ac: 0, stairs: false });
+    const ey = tblock({ x0: ex0, x1: ex1, z0, z1, floors: 1, fh, mat: M.sand, band: M.sand, doors: 'E', arch: true, parapetH: 1.0, parapet: M.dark, ac: 0, stairs: false });
     tramp(ex1 + 1.6, z1 - 1, ex1 + 1.6, z1 - 9, 0, ey, 2.4, M.trim); // escalera exterior a la terraza
     for (let i = 0; i < 3; i++) {
       const ux = (ex0 + ex1) / 2, uz = z0 + 3 + i * ((z1 - z0 - 6) / 2);
@@ -846,7 +857,7 @@
     [-7, 4, -21, -18, 1.0], [3.8, 5.5, -21, -15.5, 1.1], [5.5, 8, -21, -8.5, 1.7], [8, 14.5, -21, -8.5, 3.0],
     [10.5, 14.5, -8.5, 7, 2.6], [8, 14.5, 7, 10.5, 2.2], [-1.3, 8, 8.3, 10.5, 2.0]
   ];
-  let terrainFn = null;
+  let terrainFn = null, cityBounds = null;
   function terrainH(x, z) { return terrainFn ? terrainFn(x, z) : 0; }
   function hash2(x, y) { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
   function vnoise(x, y) { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
@@ -991,7 +1002,9 @@
     car(tx(-1.0), tz(0.4), Math.PI / 2, 0x3b6fd0); car(tx(6.0), tz(0.7), Math.PI / 2, 0xd0d0d0); car(tx(1.5), tz(-9.8), Math.PI / 2, 0xc33b4b);
     car(tx(-7.0), tz(-14.0), 0, 0xe0b23a); car(tx(4.5), tz(-8.5), 0, 0x2fa35a); car(tx(-1.6), tz(-15.2), 0, 0x9d4bc2);
     // límites invisibles
-    for (const [x, z, w, d] of [[0, -ARENA, ARENA * 2, 2], [0, ARENA, ARENA * 2, 2], [-ARENA, 0, 2, ARENA * 2], [ARENA, 0, 2, ARENA * 2]]) solids.push(collider(x, 30, z, w, 60, d));
+    { const bx0 = tx(-13.6), bx1 = tx(13.6), bz0 = tz(9.9), bz1 = tz(-20.1); cityBounds = [bx0, bx1, bz0, bz1];
+      for (const [x0, z0, x1, z1] of [[bx0 - 4, bz0 - 4, bx1 + 4, bz0], [bx0 - 4, bz1, bx1 + 4, bz1 + 4], [bx0 - 4, bz0, bx0, bz1], [bx1, bz0, bx1 + 4, bz1]])
+        solids.push(collider((x0 + x1) / 2, 100, (z0 + z1) / 2, x1 - x0, 200, z1 - z0)); }
     spawnPoint.set(tx(1.5), 0, tz(0.9));
     return floors;
   }
@@ -1053,7 +1066,7 @@
   function clearMap() { for (let i = mapGroup.children.length - 1; i >= 0; i--) mapGroup.remove(mapGroup.children[i]); solids.length = 0; ramps.length = 0; }
   function buildMap(kind) {
     currentMap = kind; clearMap();
-    ARENA = kind === 'city' ? 125 : 44; terrainFn = null;
+    ARENA = kind === 'city' ? 125 : 44; terrainFn = null; cityBounds = null;
     const city = kind === 'city';
     sun.castShadow = city; sun.intensity = city ? 1.05 : 0.9;
     if (city) sun.position.set(105, 105, 70); else sun.position.set(50, 90, 30); // como en el original: sol del este
@@ -1376,6 +1389,10 @@
     resolveWalls();
     // pendiente del terreno demasiado empinada = pared
     if (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + STEP + 0.4) { player.pos.x = ox; player.pos.z = oz; }
+    if (cityBounds) { player.pos.x = Math.max(cityBounds[0] + 1, Math.min(cityBounds[1] - 1, player.pos.x)); player.pos.z = Math.max(cityBounds[2] + 1, Math.min(cityBounds[3] - 1, player.pos.z)); }
+    else { const B = ARENA - 1; player.pos.x = Math.max(-B, Math.min(B, player.pos.x)); player.pos.z = Math.max(-B, Math.min(B, player.pos.z)); }
+    // nunca quedarse metido dentro de la ladera
+    if (terrainFn) { const th = terrainH(player.pos.x, player.pos.z); if (th > player.pos.y && th <= player.pos.y + STEP + 0.4) { player.pos.y = th; if (player.vel.y < 0) player.vel.y = 0; } }
 
     player.vel.y -= GRAVITY * dt; player.pos.y += player.vel.y * dt;
     const gh = groundHeightAt(player.pos.x, player.pos.y, player.pos.z);
