@@ -618,14 +618,17 @@
     const band = o.band || o.mat, W = x1 - x0, D = z1 - z0;
     const sill = 1.05, head = Math.min(fh - 0.75, 2.55 + (fh - FH) * 0.6);
     const matNS = o.matNS || o.mat, matEW = o.matEW || o.mat;
-    function side(ax, fixed, a0, a1, yb, isDoor, mat, ground) {
+    function side(ax, fixed, a0, a1, yb, isDoor, mat, ground, sideName) {
+      if ((o.skip || '').includes(sideName)) return;
+      const openAll = (o.openSides || '').includes(sideName);
       const arch = ground && o.arch, winW = arch ? 2.6 : (o.winW || 1.6);
       const len = a1 - a0, n = Math.max(1, Math.floor((len - 1.0) / (arch ? 4.4 : (o.winStep || 3.2)))), step = len / n, dIdx = isDoor ? Math.floor(n / 2) : -1;
       const P = (p0, p1, y0, y1, m) => ax === 'x' ? tbox(p0, y0, fixed - t / 2, p1, y1, fixed + t / 2, m) : tbox(fixed - t / 2, y0, p0, fixed + t / 2, y1, p1, m);
       for (let i = 0; i < n; i++) {
         const c = a0 + step * (i + 0.5), w0 = c - winW / 2, w1 = c + winW / 2, s0 = a0 + step * i, s1 = a0 + step * (i + 1);
         P(s0, w0, yb, yb + fh, mat); P(w1, s1, yb, yb + fh, mat);
-        const door = i === dIdx || arch, dTop = arch ? fh - 0.8 - winW / 2 : 2.75;
+        const inSpan = !o.openSpan || (c >= o.openSpan[0] && c <= o.openSpan[1]);
+        const door = i === dIdx || arch || (openAll && inSpan), dTop = arch ? fh - 0.8 - winW / 2 : 2.75;
         if (door) P(w0, w1, yb + dTop, yb + fh, band);
         else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + fh, band); }
         if (arch) { // arco de medio punto
@@ -641,10 +644,10 @@
     const doors = o.doors || '';
     for (let f = 0; f < floors; f++) {
       const yb = f * fh, g = f === 0, bm = g && o.baseMat;
-      side('x', z0, x0, x1, yb, g && doors.includes('N'), bm || matNS, g);
-      side('x', z1, x0, x1, yb, g && doors.includes('S'), bm || matNS, g);
-      side('z', x0, z0, z1, yb, g && doors.includes('W'), bm || matEW, g);
-      side('z', x1, z0, z1, yb, g && doors.includes('E'), bm || matEW, g);
+      side('x', z0, x0, x1, yb, g && doors.includes('N'), bm || matNS, g, 'N');
+      side('x', z1, x0, x1, yb, g && doors.includes('S'), bm || matNS, g, 'S');
+      side('z', x0, z0, z1, yb, g && doors.includes('W'), bm || matEW, g, 'W');
+      side('z', x1, z0, z1, yb, g && doors.includes('E'), bm || matEW, g, 'E');
     }
     if (o.corner) for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) tbox(cx - 0.45, 0, cz - 0.45, cx + 0.45, floors * fh + 0.3, cz + 0.45, o.corner, false);
     for (let f = 1; f < floors; f++) tbox(x0 - 0.12, f * fh - 0.22, z0 - 0.12, x1 + 0.12, f * fh + 0.02, z1 + 0.12, band, false); // líneas de forjado
@@ -667,8 +670,9 @@
     const ry = floors * fh, pm = o.parapet || band;
     if (o.parapetH !== 0) {
       const ph = o.parapetH || 0.8;
-      tbox(x0 - 0.15, ry, z0 - 0.15, x1 + 0.15, ry + ph, z0 + 0.3, pm); tbox(x0 - 0.15, ry, z1 - 0.3, x1 + 0.15, ry + ph, z1 + 0.15, pm);
-      tbox(x0 - 0.15, ry, z0, x0 + 0.3, ry + ph, z1, pm); tbox(x1 - 0.3, ry, z0, x1 + 0.15, ry + ph, z1, pm);
+      const sk = o.skip || '';
+      if (!sk.includes('N')) tbox(x0 - 0.15, ry, z0 - 0.15, x1 + 0.15, ry + ph, z0 + 0.3, pm); if (!sk.includes('S')) tbox(x0 - 0.15, ry, z1 - 0.3, x1 + 0.15, ry + ph, z1 + 0.15, pm);
+      if (!sk.includes('W')) tbox(x0 - 0.15, ry, z0, x0 + 0.3, ry + ph, z1, pm); if (!sk.includes('E')) tbox(x1 - 0.3, ry, z0, x1 + 0.15, ry + ph, z1, pm);
     }
     const nAC = o.ac === undefined ? Math.min(3, Math.floor(W * D / 70)) : o.ac;
     for (let k = 0; k < nAC; k++) {
@@ -680,7 +684,7 @@
   // rect en coordenadas del MODELO -> bloque
   function mblock(mx0, mx1, my0, my1, floors, style, doors, extra) {
     const S = { stone: { mat: TM.stone, band: TM.stone }, tan: { mat: TM.tan, band: TM.tan }, brick: { mat: TM.brick, band: TM.trim },
-      brickT: { mat: TM.brick, band: TM.stone, corner: TM.stone }, blue: { mat: TM.blue, matEW: TM.brick, band: TM.white, parapet: TM.white },
+      brickT: { mat: TM.brick, band: TM.cream, corner: TM.cream }, blue: { mat: TM.blue, matEW: TM.brick, band: TM.white, parapet: TM.white },
       light: { mat: TM.stoneL, band: TM.stoneL } }[style];
     tblock(Object.assign({ x0: tx(mx0), x1: tx(mx1), z0: tz(my1), z1: tz(my0), floors, doors }, S, extra || {}));
   }
@@ -869,19 +873,25 @@
     mblock(-0.57, 1.67, 2.34, 3.93, 3, 'stone', 'SN');      // A2
     mblock(5.63, 8.0, 5.73, 8.1, 3, 'stone', 'WS');         // B
     tBuildingC();                                           // C (azul)
-    mblock(-4.88, -3.38, -4.1, -1.12, 5, 'stone', 'NW');    // F ala oeste
-    mblock(-2.6, -1.25, -4.1, -1.12, 5, 'stone', 'NE');     // F ala este
-    mblock(-3.38, -2.6, -4.1, -3.25, 5, 'stone', '');       // F barra sur
+    // F: dos alas de piedra gris unidas por la barra sur (transitable en todas las plantas)
+    mblock(-4.88, -3.38, -4.1, -1.12, 5, 'stone', 'NW', { openSides: 'E', openSpan: [tz(-3.25), tz(-4.1)] });
+    mblock(-2.6, -1.25, -4.1, -1.12, 5, 'stone', 'NE', { openSides: 'W', openSpan: [tz(-3.25), tz(-4.1)] });
+    mblock(-3.38, -2.6, -4.1, -3.25, 5, 'stone', '', { skip: 'EW', stairs: false, ac: 0 });
     tBuildingG();                                           // G (cúpula)
-    mblock(-12.16, -10.6, -8.44, -5.56, 3, 'tan', 'E');     // K izq
-    mblock(-9.86, -8.27, -7.25, -5.04, 3, 'tan', 'EW');     // K der
+    // K: U de piedra crema alrededor de un patio con árbol
+    mblock(-12.16, -10.6, -8.44, -5.56, 3, 'tan', 'S', { openSides: 'E', openSpan: [tz(-5.3), tz(-6.2)] });
+    mblock(-10.6, -9.86, -6.2, -5.3, 3, 'tan', 'S', { skip: 'EW', stairs: false, ac: 0 });
+    mblock(-9.86, -8.27, -7.25, -5.04, 3, 'tan', 'E', { openSides: 'W', openSpan: [tz(-5.3), tz(-6.2)] });
     mblock(-4.2, -1.93, -6.58, -4.81, 2, 'brick', 'WN');    // L
     mblock(-0.64, 1.2, -6.85, -6.31, 2, 'stone', 'N', { stairs: false }); // pequeño
     mblock(-1.32, 2.41, -8.54, -6.85, 6, 'brickT', 'SN', { baseMat: TM.stoneL });   // M torre de ladrillo
     mblock(-3.69, -2.6, -12.0, -8.44, 1, 'tan', 'EN');      // O
     mblock(5.8, 8.1, -7.19, -4.81, 3, 'stone', 'WN');       // Q
-    mblock(-10.6, -8.6, -13.4, -11.35, 4, 'brickT', 'EN', { baseMat: TM.cream, fh: 3.9 });  // R ladrillo
-    tTree(tx(-10.3), tz(-6.2), 1.2); tTree(tx(-9.3), tz(-7.0), 0.9); // patio de K
+    // R: ladrillo en cruz (cuerpo central + brazos E/O comunicados), base crema
+    mblock(-10.2, -9.05, -13.63, -11.15, 4, 'brickT', 'NS', { baseMat: TM.cream, fh: 3.9, openSides: 'EW', openSpan: [tz(-11.9), tz(-12.9)] });
+    mblock(-10.8, -10.2, -12.9, -11.9, 4, 'brickT', 'W', { baseMat: TM.cream, fh: 3.9, skip: 'E', stairs: false, ac: 0 });
+    mblock(-9.05, -8.44, -12.9, -11.9, 4, 'brickT', 'E', { baseMat: TM.cream, fh: 3.9, skip: 'W', stairs: false, ac: 0 });
+    tTree(tx(-10.23), tz(-7.4), 1.15); // árbol del patio de K
     mblock(-0.8, 3.26, -15.05, -10.8, 1, 'light', 'NW');    // S nave
     // lucernarios de la nave
     for (let i = 0; i < 3; i++) tbox(tx(-0.2) + i * 6.5, FH, tz(-12) - 1.5, tx(-0.2) + i * 6.5 + 4, FH + 0.8, tz(-12) + 1.5, TM.glass, false);
