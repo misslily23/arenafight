@@ -300,7 +300,7 @@
     g.userData.headMeshes = [];
     g.traverse(o => { if (o.isMesh && isHeadName(o.name)) g.userData.headMeshes.push(o); });
     g.userData.body = g.children[0]; g.userData.limbs = [];
-    g.traverse(o => { if (o.name && o.name.indexOf('limb_') === 0) g.userData.limbs.push({ p: o, leg: o.name.indexOf('leg') > 0, side: o.name.slice(-1) === 'R' ? 1 : -1 }); });
+    g.traverse(o => { if (o.name && o.name.indexOf('limb_') === 0) g.userData.limbs.push({ p: o, leg: o.name.indexOf('leg') > 0, side: o.name.slice(-1) === 'R' ? 1 : -1, glb: true }); });
     return g;
   }
   const CHAR_H = 2.4; // altura común de todos los personajes
@@ -1479,7 +1479,25 @@
     }
     const tipZ = type === 'sniper' ? -0.87 : (type === 'shotgun' ? -0.68 : -0.58);
     flashMesh = buildFlash(); flashMesh.position.set(0, 0.01, tipZ); g.add(flashMesh);
+    // cargador (se anima al recargar)
+    const mag = new T.Group(); mag.add(cmesh(new T.BoxGeometry(0.055, type === 'shotgun' ? 0.04 : 0.17, type === 'shotgun' ? 0.09 : 0.08), type === 'shotgun' ? 0xb8402f : 0x16181d));
+    mag.position.set(0, type === 'shotgun' ? -0.08 : -0.15, type === 'sniper' ? 0.0 : (type === 'shotgun' ? -0.18 : -0.02)); if (type === 'shotgun') mag.visible = false; g.add(mag);
+    g.userData.mag = mag; g.userData.magBase = mag.position.clone();
+    // brazos en primera persona: mano derecha en la empuñadura, izquierda en el guardamanos
+    const sleeve = 0x34465a, skin = 0xd9a77c;
+    const arm = (hand, elbow, shoulder) => { const a = new T.Group();
+      a.add(limbBetween(hand, elbow, 0.045, skin)); a.add(limbBetween(elbow, shoulder, 0.06, sleeve));
+      const h = cmesh(new T.BoxGeometry(0.075, 0.075, 0.11), skin); h.position.copy(hand); a.add(h); return a; };
+    const gripZ = type === 'sniper' ? 0.04 : (type === 'shotgun' ? 0.16 : 0.06), foreZ = type === 'sniper' ? -0.32 : (type === 'shotgun' ? -0.25 : -0.28);
+    g.add(arm(new T.Vector3(0.02, -0.12, gripZ), new T.Vector3(0.12, -0.26, 0.3), new T.Vector3(0.18, -0.34, 0.62)));
+    const left = new T.Group(); left.add(arm(new T.Vector3(-0.02, -0.06, foreZ), new T.Vector3(-0.2, -0.24, -0.05), new T.Vector3(-0.32, -0.36, 0.45))); g.add(left);
+    g.userData.left = left;
     return g;
+  }
+  // cilindro entre dos puntos (para los brazos del arma en primera persona)
+  function limbBetween(a, b, r, color) {
+    const d = b.clone().sub(a), m = cmesh(new T.CylinderGeometry(r, r * 1.1, d.length(), 8), color);
+    m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); return m;
   }
   function place(m, x, y, z, rx, ry, rz) { m.position.set(x, y, z); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); return m; }
 
@@ -1506,7 +1524,7 @@
   function attachWeapon(charGroup, type) {
     if (!charGroup) return;
     let h = charGroup.userData.gunHolder;
-    if (!h) { h = new T.Group(); h.position.set(0.5, 1.3, 0.3); charGroup.add(h); charGroup.userData.gunHolder = h; }
+    if (!h) { const sc = charGroup.scale.x || 1; h = new T.Group(); h.position.set(0.22 / sc, 1.5 / sc, 0.62 / sc); h.scale.setScalar(1 / sc); charGroup.add(h); charGroup.userData.gunHolder = h; charGroup.userData.holding = true; }
     if (charGroup.userData.gunType === type) return;
     charGroup.userData.gunType = type;
     while (h.children.length) h.remove(h.children[0]);
@@ -1526,18 +1544,44 @@
 
   // ---------- Audio ----------
   let actx = null;
-  function sfx(type) {
+  // pos: de dónde viene el disparo (null = mi propia arma). Volumen por distancia, panorama según el lado, más apagado a lo lejos
+  function sfx(type, pos) {
     try {
       if (!actx) return;
+      let vol = 1, pan = 0, muff = 1;
+      if (pos) { const d = camera.position.distanceTo(pos); vol = Math.pow(Math.max(0, 1 - d / 160), 1.6); if (vol < 0.02) return;
+        const rel = pos.clone().sub(camera.position); const right = new T.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)); pan = Math.max(-1, Math.min(1, rel.normalize().dot(right)));
+        muff = Math.max(0.25, 1 - d / 120); }
       const dur = type === 'sniper' ? 0.28 : (type === 'shotgun' ? 0.2 : 0.12);
       const buf = actx.createBuffer(1, actx.sampleRate * dur, actx.sampleRate);
       const d = buf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
       const src = actx.createBufferSource(); src.buffer = buf;
-      const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = type === 'sniper' ? 1800 : (type === 'shotgun' ? 2600 : 3800);
-      const g = actx.createGain(); g.gain.value = type === 'shotgun' ? 0.55 : 0.35;
-      src.connect(f); f.connect(g); g.connect(actx.destination); src.start();
+      const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = (type === 'sniper' ? 1800 : (type === 'shotgun' ? 2600 : 3800)) * muff;
+      const g = actx.createGain(); g.gain.value = (type === 'shotgun' ? 0.55 : 0.35) * vol;
+      src.connect(f); f.connect(g);
+      if (actx.createStereoPanner) { const pn = actx.createStereoPanner(); pn.pan.value = pan; g.connect(pn); pn.connect(actx.destination); } else g.connect(actx.destination);
+      src.start();
     } catch (e) {}
+  }
+  function clickSfx(v) { // clic metálico de cargador/cartucho
+    try { if (!actx) return; const o = actx.createOscillator(), g = actx.createGain(); o.type = 'square'; o.frequency.value = 900 + 500 * v;
+      g.gain.setValueAtTime(0.08 * v, actx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.06); o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.07); } catch (e) {}
+  }
+  function whizzSfx(closeness, pan) { // bala que pasa cerca: silbido corto
+    try { if (!actx) return; const dur = 0.18, buf = actx.createBuffer(1, actx.sampleRate * dur, actx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) { const t = i / d.length; d[i] = (Math.random() * 2 - 1) * Math.sin(t * Math.PI); }
+      const src = actx.createBufferSource(); src.buffer = buf; const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 3200; f.Q.value = 3;
+      const g = actx.createGain(); g.gain.value = 0.5 * closeness; src.connect(f); f.connect(g);
+      if (actx.createStereoPanner) { const pn = actx.createStereoPanner(); pn.pan.value = pan; g.connect(pn); pn.connect(actx.destination); } else g.connect(actx.destination);
+      src.start(); } catch (e) {}
+  }
+  // disparo de otro jugador: sonido según distancia y zumbido si la bala pasa cerca de mí
+  function remoteShotAudio(w, o, dir) {
+    sfx(w || 'rifle', o);
+    const to = camera.position.clone().sub(o), t = to.dot(dir); if (t <= 0) return;
+    const closest = o.clone().addScaledVector(dir, t), dist = closest.distanceTo(camera.position);
+    if (dist < 4 && t > 3) { const right = new T.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)); whizzSfx(1 - dist / 4, Math.max(-1, Math.min(1, closest.sub(camera.position).normalize().dot(right)))); }
   }
 
   // ---------- Enemies ----------
@@ -1573,7 +1617,7 @@
   function damageEnemy(e, dmg, isHead) {
     e.userData.hp -= dmg * (isHead ? 2.3 : 1);
     flashEnemy(e);
-    if (e.userData.hp <= 0) { score++; document.getElementById('score').textContent = score; respawnEnemy(e); }
+    if (e.userData.hp <= 0 && e.userData.dying === undefined) { score++; document.getElementById('score').textContent = score; e.userData.dying = 0; } // cae y luego reaparece
   }
   for (let i = 0; i < 8; i++) makeEnemy();
 
@@ -1609,7 +1653,7 @@
       raycaster.set(origin, dir);
       const targets = worldSolids.slice();
       if (net.active) { for (const id in remotes) { const rp = remotes[id]; if (rp.dead || !rp.group.visible) continue; for (const m of rp.meshes) targets.push(m); } } // los muertos (invisibles) no reciben ni tapan balas
-      else for (const e of enemies) for (const m of e.userData.meshes) targets.push(m);
+      else for (const e of enemies) { if (e.userData.dying !== undefined) continue; for (const m of e.userData.meshes) targets.push(m); }
       const hits = raycaster.intersectObjects(targets, false);
       let end = origin.clone().add(dir.clone().multiplyScalar(300));
       if (hits.length) {
@@ -1629,7 +1673,7 @@
     }
     recoilPitch += w.kick; // retroceso de cámara
     if (net.active) {
-      const shot = { t: 'shot', from: net.id, ox: origin.x, oy: origin.y, oz: origin.z, ex: baseDir.x, ey: baseDir.y, ez: baseDir.z };
+      const shot = { t: 'shot', from: net.id, w: curWeapon, ox: origin.x, oy: origin.y, oz: origin.z, ex: baseDir.x, ey: baseDir.y, ez: baseDir.z };
       if (net.host) net.broadcast(shot); else net.toHost(shot);
     }
     if (st.mag <= 0) reload();
@@ -1755,6 +1799,12 @@
       camera.position.set(player.pos.x + back.x * d, eyeY + 0.8 - pitch * 2, player.pos.z + back.z * d);
     } else camera.position.set(player.pos.x, eyeY, player.pos.z);
     camera.rotation.set(pitch + recoilPitch, yaw, 0);
+    if (player.dead) { // muerte en 1ª persona: la vista cae al suelo y se ladea
+      player.deadT = (player.deadT || 0) + dt; const f = Math.min(1, player.deadT / 0.6);
+      if (!thirdPerson) camera.position.y = player.pos.y + EYE - f * f * (EYE - 0.45);
+      camera.rotation.set(pitch * (1 - f) + f * 0.25, yaw, f * 0.9);
+    } else player.deadT = 0;
+    if (avatar) avatar.userData.dying = player.dead ? player.deadT : undefined; avatar && (avatar.userData.reloading = reloading);
 
     // FOV / ADS
     const wantFov = ads ? WEAPONS[curWeapon].adsFov : BASE_FOV;
@@ -1769,6 +1819,23 @@
     weaponGroup.position.y += (tgtY - weaponGroup.position.y) * Math.min(1, dt * 12);
     weaponGroup.position.z += (gunBaseZ - weaponGroup.position.z) * Math.min(1, dt * 14);
     weaponGroup.rotation.x += (0 - weaponGroup.rotation.x) * Math.min(1, dt * 12);
+    if (gunModel) { // recarga: se inclina el arma, sale el cargador y entra el nuevo (escopeta: mete cartuchos)
+      const W = WEAPONS[curWeapon], u = gunModel.userData;
+      const k = reloading ? Math.max(0, Math.min(1, 1 - (reloadEnd - performance.now()) / (W.reload * 1000))) : 1;
+      const env = reloading ? Math.sin(Math.min(1, k * 1.15) * Math.PI) : 0;
+      gunModel.rotation.z += ((reloading ? 0.55 * env : 0) - gunModel.rotation.z) * Math.min(1, dt * 14);
+      gunModel.rotation.x += ((reloading ? 0.35 * env : 0) - gunModel.rotation.x) * Math.min(1, dt * 14);
+      gunModel.position.y += ((reloading ? -0.1 * env : 0) - gunModel.position.y) * Math.min(1, dt * 14);
+      if (u.mag && u.left) {
+        if (curWeapon === 'shotgun') { const ph = reloading ? (k * 5) % 1 : 0; u.mag.visible = reloading && ph < 0.6;
+          u.mag.position.set(u.magBase.x, u.magBase.y - 0.12 + ph * 0.12, u.magBase.z); u.left.position.set(0, reloading ? -0.1 + ph * 0.1 : 0, reloading ? 0.1 : 0);
+          if (reloading) { const st = Math.floor(k * 5); if (st !== u._st) { u._st = st; clickSfx(0.5); } } }
+        else { let dy = 0; if (reloading) { if (k < 0.2) dy = -k / 0.2 * 0.05; else if (k < 0.5) dy = -0.05 - (k - 0.2) / 0.3 * 0.5; else if (k < 0.8) dy = -0.55 + (k - 0.5) / 0.3 * 0.55; }
+          u.mag.position.set(u.magBase.x, u.magBase.y + dy, u.magBase.z); u.mag.visible = !(reloading && k > 0.4 && k < 0.55);
+          u.left.position.set(reloading ? 0.02 : 0, reloading ? Math.max(-0.35, dy * 0.6) : 0, reloading ? 0.2 * env : 0);
+          const ph = reloading ? (k < 0.25 ? 0 : k < 0.8 ? 1 : 2) : 0; if (ph !== u._ph) { if (ph > 0) clickSfx(ph === 1 ? 0.6 : 0.9); u._ph = ph; } }
+      }
+    }
     document.getElementById('scope').style.display = sniperScoped ? 'block' : 'none';
     document.getElementById('scopeDot').style.display = sniperScoped ? 'block' : 'none';
     document.getElementById('crosshair').style.display = sniperScoped ? 'none' : 'block';
@@ -1786,14 +1853,15 @@
       net.sendT -= dt;
       if (net.sendT <= 0) {
         net.sendT = 0.05;
-        const st = { t: 's', x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: yaw, hp: player.hp, w: curWeapon, ch: selectedChar, nm: playerName, dd: player.dead };
+        const st = { t: 's', x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: yaw, hp: player.hp, w: curWeapon, ch: selectedChar, nm: playerName, dd: player.dead, rl: reloading ? 1 : 0 };
         if (net.host) { st.from = 'host'; net.broadcast(st); } else net.toHost(st);
       }
       for (const id in remotes) {
         const r = remotes[id];
         r.group.position.lerp(r.target, Math.min(1, dt * 14));
         r.group.rotation.y += ((r.yaw + Math.PI) - r.group.rotation.y) * Math.min(1, dt * 14);
-        r.group.visible = !r.dead;
+        if (r.dead) { r.deadT = (r.deadT || 0) + dt; r.group.userData.dying = r.deadT; r.group.visible = r.deadT < 1.8; }
+        else { r.deadT = 0; r.group.userData.dying = undefined; r.group.visible = true; }
         attachWeapon(r.group, r.w);
         if (r.bar) { r.bar.lookAt(camera.position); r.barFill.scale.x = Math.max(0.01, r.hp / MAXHP); }
       }
@@ -1803,6 +1871,7 @@
     // enemigos (bots): sólo en modo offline
     if (!net.active) for (const e of enemies) {
       const ud = e.userData;
+      if (ud.dying !== undefined) { ud.dying += dt; if (ud.dying > 1.6) { ud.dying = undefined; e.rotation.x = 0; respawnEnemy(e); } continue; }
       const toP = new T.Vector3(player.pos.x - e.position.x, 0, player.pos.z - e.position.z);
       const distP = toP.length();
       const sees = !player.dead && distP < 45 && botCanSeePlayer(e);
@@ -1862,13 +1931,20 @@
     const amt = Math.min(1, ud._sp / 9);
     if (amt > 0.04) ud._ph += dt * (5 + ud._sp * 0.7); else ud._ph *= 0.9;
     const s = Math.sin(ud._ph), body = ud.body, glb = !ud.limbs || !ud.limbs.length;
+    const rl = !!ud.reloading, rk = rl ? 0.5 + 0.5 * Math.sin(performance.now() / 120) : 0;
     for (const L of ud.limbs || []) {
       const ph = L.side > 0 ? s : -s;                       // piernas y brazos alternos
-      L.p.rotation.x = (L.leg ? ph * 0.75 : -ph * 0.55) * amt;
+      if (L.leg || !ud.holding) { L.p.rotation.x = (L.leg ? ph * 0.75 : -ph * 0.55) * amt; continue; }
+      // brazos sujetando el arma hacia delante (al recargar bajan y la mano izquierda va y viene)
+      const right = L.side > 0, aimX = right ? -1.45 : -1.3, inward = (right ? -0.38 : 0.38) * (L.glb ? -1 : 1);
+      L.p.rotation.x = rl ? (right ? -0.95 : -0.7 - 0.35 * rk) : aimX + ph * 0.05 * amt;
+      if (L.glb) { L.p.rotation.y = inward; } else L.p.rotation.z = inward;
     }
+    if (ud.gunHolder) { ud.gunHolder.rotation.x = rl ? 0.5 : 0; ud.gunHolder.position.y = (rl ? 1.28 : 1.5) / (g.scale.x || 1); }
     body.position.y = (ud.baseY || 0) + Math.abs(Math.cos(ud._ph)) * (glb ? 0.16 : 0.1) * amt;   // rebote a cada paso
     body.rotation.z = s * (glb ? 0.12 : 0.05) * amt;                           // contoneo
     body.rotation.x = (glb ? 0.08 : 0.04) * amt;                               // se inclina un poco hacia delante
+    if (ud.dying !== undefined) { const f = Math.min(1, ud.dying / 0.45); body.rotation.x = -f * f * 1.45; body.rotation.z = f * 0.2; body.position.y = (ud.baseY || 0) + f * 0.15; } // muerte: cae de espaldas
   }
   function animateChars(dt) {
     for (const e of enemies) if (e.visible) animateChar(e, dt);
@@ -2060,7 +2136,7 @@
       const fromId = net.host ? sender : d.from;
       if (fromId == null || fromId === net.id) return;
       const r = remotes[fromId] || makeRemotePlayer(fromId, d.ch);
-      r.target.set(d.x, d.y, d.z); r.yaw = d.yaw; r.hp = d.hp; r.w = d.w || 'rifle'; r.dead = !!d.dd;
+      r.target.set(d.x, d.y, d.z); r.yaw = d.yaw; r.hp = d.hp; r.w = d.w || 'rifle'; r.dead = !!d.dd; r.group.userData.reloading = !!d.rl;
       if (net.host) {
         board[fromId] = board[fromId] || { name: d.nm || 'Player', ch: d.ch, kills: 0 };
         board[fromId].name = d.nm || board[fromId].name; board[fromId].ch = d.ch;
@@ -2071,6 +2147,8 @@
       else if (net.host) { net.sendTo(d.target, d); }
     } else if (d.t === 'shot') {
       tracer(new T.Vector3(d.ox, d.oy, d.oz), new T.Vector3(d.ox + d.ex * 200, d.oy + d.ey * 200, d.oz + d.ez * 200));
+      remoteShotAudio(d.w, new T.Vector3(d.ox, d.oy, d.oz), new T.Vector3(d.ex, d.ey, d.ez));
+      const rs = remotes[net.host ? sender : d.from]; if (rs) rs.lastShot = performance.now();
       if (net.host) { d.from = sender; net.broadcast(d, sender); }
     } else if (d.t === 'died') {
       const fromId = net.host ? sender : d.from;
@@ -2337,8 +2415,8 @@
       if (prevP) for (const wc of winCols) { const u = wc.userData, q = wc.position;
         if (Math.abs(q.x - player.pos.x) > 3 + u.hw || Math.abs(q.z - player.pos.z) > 3 + u.hd) continue;
         const y = player.pos.y + 1.2; if (Math.abs(y - q.y) > u.hh) continue;
-        if (u.hd < u.hw) { if (Math.abs(player.pos.x - q.x) < u.hw && Math.sign(player.pos.z - q.z) !== Math.sign(prevP.z - q.z)) issue('crossed_window', player.pos); }
-        else if (Math.abs(player.pos.z - q.z) < u.hd && Math.sign(player.pos.x - q.x) !== Math.sign(prevP.x - q.x)) issue('crossed_window', player.pos); }
+        if (u.hd < u.hw) { if (Math.abs(player.pos.x - q.x) < u.hw && Math.sign(player.pos.z - q.z) !== Math.sign(prevP.z - q.z)) issue('crossed_window', player.pos, 'from ' + prevP.x.toFixed(1) + ',' + prevP.z.toFixed(1) + ' to ' + player.pos.x.toFixed(1) + ',' + player.pos.z.toFixed(1)); }
+        else if (Math.abs(player.pos.z - q.z) < u.hd && Math.sign(player.pos.x - q.x) !== Math.sign(prevP.x - q.x)) issue('crossed_window', player.pos, 'from ' + prevP.x.toFixed(1) + ',' + prevP.z.toFixed(1) + ' to ' + player.pos.x.toFixed(1) + ',' + player.pos.z.toFixed(1)); }
       prevP = player.pos.clone();
       R.maxY = Math.max(R.maxY, +player.pos.y.toFixed(1));
       // ¿los rivales que se mueven se ven andando (piernas/cuerpo animados)?
