@@ -271,11 +271,28 @@
     x.beginPath(); x.moveTo(92, 166); x.quadraticCurveTo(88, 184, 96, 198); x.stroke();
     x.beginPath(); x.moveTo(172, 166); x.quadraticCurveTo(178, 184, 170, 198); x.stroke();
   }
+  function drawPepeEyes(x) { // 512x256: ojos clásicos de Pepe (párpado pesado, raya negra gruesa, pupila grande abajo de reojo)
+    const G = '#46862f';
+    const eye = (cx, cy, rx, ry, lidTilt) => {
+      x.save(); x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); x.fillStyle = '#fff'; x.fill(); x.clip();
+      x.fillStyle = '#0d0d0d'; x.beginPath(); x.arc(cx + rx * 0.28, cy + ry * 0.25, ry * 0.5, 0, Math.PI * 2); x.fill();           // pupila
+      x.fillStyle = '#fff'; x.beginPath(); x.arc(cx + rx * 0.4, cy + ry * 0.1, ry * 0.15, 0, Math.PI * 2); x.fill();            // brillo
+      x.fillStyle = G; x.beginPath(); x.moveTo(cx - rx - 5, cy - ry - 5); x.lineTo(cx + rx + 5, cy - ry - 5);                       // párpado
+      x.lineTo(cx + rx + 5, cy - ry * 0.3 + lidTilt); x.lineTo(cx - rx - 5, cy - ry * 0.3 - lidTilt); x.closePath(); x.fill();
+      x.restore();
+      x.lineWidth = 9; x.strokeStyle = '#0b0b0b'; x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); x.stroke();          // contorno
+      x.lineWidth = 13; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - rx - 8, cy - ry * 0.28 - lidTilt); x.quadraticCurveTo(cx, cy - ry * 0.42, cx + rx + 8, cy - ry * 0.28 + lidTilt); x.stroke(); // raya del párpado
+      x.lineWidth = 6; for (const k of [1, 2]) { x.beginPath(); x.moveTo(cx - rx * 0.7, cy - ry * 0.45 - k * 14); x.quadraticCurveTo(cx, cy - ry * 0.62 - k * 15, cx + rx * 0.75, cy - ry * 0.42 - k * 14); x.stroke(); } // arrugas del párpado
+    };
+    x.clearRect(0, 0, 512, 256);
+    eye(138, 150, 104, 82, -10); eye(376, 146, 108, 84, 12); // los dos párpados caen hacia fuera (cara triste)
+  }
   function drawChadChest(x) {
     x.clearRect(0, 0, 256, 256);
     x.fillStyle = '#111'; x.textAlign = 'center'; x.font = 'bold 50px Arial';
     x.fillText('STOP', 128, 92); x.fillText('BEING', 128, 150); x.fillText('POOR', 128, 208);
   }
+  const pepeEyesTex = (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 256; drawPepeEyes(c.getContext('2d')); const t = new T.CanvasTexture(c); t.anisotropy = 4; return t; })();
   const trollTex = faceTex(drawTroll), wojakTex = faceTex(drawWojak), chadTex = faceTex(drawChadChest);
 
   // ---------- Character builders (facing +Z) ----------
@@ -365,14 +382,11 @@
       // jorobas de los ojos encima de la cabeza
       [-0.4, 0.4].forEach(sx => {
         const hump = H(outline(cmesh(new T.SphereGeometry(0.42, 20, 16), grn), 1.05)); hump.position.set(sx, 3.18, 0.3); hump.scale.set(1.05, 0.85, 1.0);
-        const eye = H(cmesh(new T.SphereGeometry(0.3, 20, 16), 0xffffff)); eye.position.set(sx, 3.07, 0.58); eye.scale.set(1.3, 0.85, 0.7);
-        const pup = H(cmesh(new T.SphereGeometry(0.15, 14, 12), 0x0d0d0d)); pup.position.set(sx + 0.1, 3.03, 0.8); pup.scale.set(1, 1, 0.55);   // de reojo
-        const gl = H(cmesh(new T.SphereGeometry(0.05, 8, 6), 0xffffff)); gl.position.set(sx + 0.14, 3.07, 0.87);
-        // párpado pesado: tapa la mitad de arriba del ojo, recto y un poco caído hacia fuera
-        const lid = H(outline(cmesh(new T.SphereGeometry(0.33, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), grnL), 1.04)); lid.position.set(sx, 3.04, 0.58); lid.scale.set(1.3, 0.9, 0.78);
-        lid.rotation.set(0.25, 0, sx > 0 ? -0.12 : 0.12);
-        const crease = H(cmesh(new T.TorusGeometry(0.3, 0.018, 6, 20, Math.PI), 0x1c3a12)); crease.position.set(sx, 3.2, 0.66); crease.scale.set(1.25, 0.6, 1);   // arruga del párpado
       });
+      // ojos: panel curvo delante de las jorobas con los ojos dibujados como en el meme
+      const eyes = H(new T.Mesh(new T.SphereGeometry(0.82, 32, 14, Math.PI / 2 - 0.82, 1.64, Math.PI / 2 - 0.5, 0.82),
+        new T.MeshBasicMaterial({ map: pepeEyesTex, transparent: true, alphaTest: 0.35, side: T.DoubleSide })));
+      eyes.position.set(0, 3.0, 0.08); eyes.scale.set(1.08, 1.0, 1.0);
       // manga larga azul y manos verdes
       [-0.62, 0.62].forEach(sx => { const a = addLimb(g, sx * 1.1, 1.45, 0, 0.16, 1.25, shirt); a.rotation.z = sx > 0 ? 0.1 : -0.1;
         const hnd = cmesh(new T.SphereGeometry(0.18, 10, 8), grn); hnd.position.set(0, -1.3, 0); hnd.scale.set(1, 1.1, 1.2); a.add(hnd); });
