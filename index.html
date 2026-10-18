@@ -211,7 +211,7 @@
   sun.position.set(50, 90, 30); scene.add(sun);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
   sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -125, right: 125, top: 125, bottom: -125, near: 1, far: 420 });
+  Object.assign(sun.shadow.camera, { left: -165, right: 165, top: 165, bottom: -165, near: 1, far: 560 });
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05;
   const hemi = scene.children.find(o => o.isHemisphereLight);
@@ -524,7 +524,7 @@
 
   // ===================== PISOS PICADOS (Tilted Towers) calcado del modelo Sketchfab =====================
   // Medidas reales tomadas del modelo (unidades de modelo, x=este, y=norte). 1 planta = 0.52 u.
-  const TS = 6.5, FH = 0.52 * TS;          // escala modelo->juego, altura de planta (~3.4)
+  const TS = 8.45, KS = TS / 6.5, FH = 0.52 * TS;          // escala modelo->juego, altura de planta (~3.4)
   const tx = mx => (mx + 0.3) * TS;        // modelo x -> juego x
   const tz = my => -(my + 5.0) * TS;       // modelo y (norte) -> juego z (norte = -z)
   let batches = null, TM = null;
@@ -680,26 +680,26 @@
   function tblock(o) {
     const { x0, z0, x1, z1, floors } = o, t = 0.4, M = TM, fh = o.fh || FH;
     const band = o.band || o.mat, W = x1 - x0, D = z1 - z0;
-    const sill = 1.05, head = Math.min(fh - 0.75, 2.55 + (fh - FH) * 0.6);
+    const sill = 1.05, head = Math.min(fh - 0.75, 3.3 + (fh - FH) * 0.6);
     const matNS = o.matNS || o.mat, matEW = o.matEW || o.mat;
     function side(ax, fixed, a0, a1, yb, isDoor, mat, ground, sideName) {
       if ((o.skip || '').includes(sideName)) return;
       const openAll = (o.openSides || '').includes(sideName);
-      const arch = ground && o.arch, winW = arch ? 2.6 : (o.winW || 1.6);
+      const arch = ground && o.arch, winW = arch ? 3.2 : (o.winW || 2.0);
       const len = a1 - a0, n = Math.max(1, Math.floor((len - 1.0) / (arch ? 4.4 : (o.winStep || 3.2)))), step = len / n, dIdx = isDoor ? Math.floor(n / 2) : -1;
       const P = (p0, p1, y0, y1, m) => ax === 'x' ? tbox(p0, y0, fixed - t / 2, p1, y1, fixed + t / 2, m) : tbox(fixed - t / 2, y0, p0, fixed + t / 2, y1, p1, m);
       for (let i = 0; i < n; i++) {
         const c = a0 + step * (i + 0.5), w0 = c - winW / 2, w1 = c + winW / 2, s0 = a0 + step * i, s1 = a0 + step * (i + 1);
         P(s0, w0, yb, yb + fh, mat); P(w1, s1, yb, yb + fh, mat);
         const inSpan = !o.openSpan || (c >= o.openSpan[0] && c <= o.openSpan[1]);
-        const door = i === dIdx || arch || (openAll && inSpan), dTop = arch ? fh - 0.8 - winW / 2 : 2.75;
+        const door = i === dIdx || arch || (openAll && inSpan), dTop = arch ? fh - 0.8 - winW / 2 : 3.4;
         if (door) P(w0, w1, yb + dTop, yb + fh, band);
         else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + fh, band); }
         if (arch) { // arco de medio punto
           const ax2 = ax === 'x'; tArch(ax2 ? c : fixed, yb + dTop, ax2 ? fixed : c, winW / 2 + 0.05, ax2, o.frame || M.trim);
           continue;
         }
-        const fy0 = door ? yb : yb + sill, fy1 = door ? yb + 2.75 : yb + head, ft = t + 0.14, fm = o.frame || M.white;
+        const fy0 = door ? yb : yb + sill, fy1 = door ? yb + 3.4 : yb + head, ft = t + 0.14, fm = o.frame || M.white;
         const F = (p0, p1, y0, y1) => ax === 'x' ? tbox(p0, y0, fixed - ft / 2, p1, y1, fixed + ft / 2, fm, false) : tbox(fixed - ft / 2, y0, p0, fixed + ft / 2, y1, p1, fm, false);
         F(w0 - 0.14, w0, fy0, fy1); F(w1, w1 + 0.14, fy0, fy1); F(w0 - 0.14, w1 + 0.14, fy1, fy1 + 0.14);
         if (!door) { F(w0 - 0.2, w1 + 0.2, fy0 - 0.12, fy0); F(c - 0.05, c + 0.05, fy0, fy1); }
@@ -718,7 +718,7 @@
     tbox(x0 + t / 2, 0, z0 + t / 2, x1 - t / 2, 0.04, z1 - t / 2, M.wood, false);
     // escaleras y forjados
     const canStairs = o.stairs !== false && W >= 6.6 && D >= 7.2;
-    const RUN = Math.min(6.4 * fh / FH, D - 2 * t - 2.4), wellW = 2.4;
+    const RUN = Math.min(6.4 * fh / FH, D - 2 * t - 2.4), wellW = 3.0;
     const zs = z0 + t + 1.2, ze = zs + RUN;
     const wells = [[x0 + t, x0 + t + wellW], [x1 - t - wellW, x1 - t]];
     for (let j = 1; j <= floors; j++) {
@@ -743,7 +743,7 @@
       const ax0 = x0 + 3 + ((k * 7.3) % Math.max(1, W - 7)), az0 = z1 - 4.5 - ((k * 3.1) % Math.max(1, D - 8));
       tbox(ax0, ry, az0, ax0 + 2.2, ry + 1.3, az0 + 1.6, M.trim); tbox(ax0 + 0.3, ry + 1.3, az0 + 0.3, ax0 + 1.9, ry + 1.45, az0 + 1.3, M.dark, false);
     }
-    if (o.furnish !== false) furnishBlock(o, x0, z0, x1, z1, floors, fh, t, canStairs, wells, zs, ze);
+    if (o.furnish === true) furnishBlock(o, x0, z0, x1, z1, floors, fh, t, canStairs, wells, zs, ze);
     return ry;
   }
   // rect en coordenadas del MODELO -> bloque
@@ -766,7 +766,7 @@
     if (alongX) tbox(x - L / 2 - 0.05, 1.6, z - W / 2 - 0.05, x + L / 2 + 0.05, 2.6, z + W / 2 + 0.05, TM.glass, false); else tbox(x - W / 2 - 0.05, 1.6, z - L / 2 - 0.05, x + W / 2 + 0.05, 2.6, z + L / 2 + 0.05, TM.glass, false);
   }
   function tClockTower(cx, cz) {
-    const M = TM, b = 9.4, s = 7.2, fl = 7, fh = 3.6;
+    const M = TM, b = 9.4 * KS, s = 7.2 * KS, fl = 7, fh = 3.6 * KS;
     // torre de ladrillo crema, planta baja de piedra con arcos; escalera interior hasta el campanario
     tblock({ x0: cx - s / 2, x1: cx + s / 2, z0: cz - s / 2, z1: cz + s / 2, floors: fl, fh, mat: M.cream, baseMat: M.stoneL, band: M.trim, corner: M.trim, doors: 'S', arch: true, winW: 1.1, parapetH: 0, ac: 0, furnish: false });
     // zócalo ancho de piedra (base)
@@ -810,7 +810,7 @@
   }
   // G: bloque de piedra beige con grandes arcos y cúpula baja + ala este baja con terraza y sombrillas
   function tBuildingG() {
-    const M = TM, x0 = tx(-0.45), x1 = tx(1.75), z0 = tz(-1.35), z1 = tz(-4.45), fh = 4.4;
+    const M = TM, x0 = tx(-0.45), x1 = tx(1.75), z0 = tz(-1.35), z1 = tz(-4.45), fh = 4.4 * KS;
     const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.sand, band: M.trim, doors: 'NS', arch: true, ac: 0 });
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, R = Math.min(x1 - x0, z1 - z0) / 2 - 0.6;
     tbox(cx - R, ry, cz - R, cx + R, ry + 0.9, cz + R, M.sand); // tambor
@@ -831,7 +831,7 @@
   }
   // C: 2 plantas altas de ladrillo con fachada central azul, miradores blancos y esquinas redondeadas
   function tBuildingC() {
-    const M = TM, x0 = tx(8.78), x1 = tx(11.06), z0 = tz(4.88), z1 = tz(2.85), fh = 4.5;
+    const M = TM, x0 = tx(8.78), x1 = tx(11.06), z0 = tz(4.88), z1 = tz(2.85), fh = 4.5 * KS;
     const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.brick, band: M.white, doors: 'W', parapet: M.white, parapetH: 1.0, frame: M.white, ac: 1 });
     const cz = (z0 + z1) / 2, w = (z1 - z0) * 0.42;
     tbox(x0 - 0.35, 0.4, cz - w / 2, x0 + 0.05, ry, cz + w / 2, M.blue, false);          // paño azul central (fachada oeste)
@@ -869,7 +869,7 @@
   }
   function buildTerrain(floors) {
     terrainFn = makeTerrainFn();
-    const size = 260, seg = 170, g = new T.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
+    const size = 340, seg = 190, g = new T.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
     const pos = g.attributes.position, col = new Float32Array(pos.count * 3), n1 = seg + 1, cell = size / seg;
     for (let i = 0; i < pos.count; i++) pos.setY(i, terrainFn(pos.getX(i), pos.getZ(i)));
     const HY = i => pos.getY(i);
@@ -889,8 +889,8 @@
     const pineM = new T.MeshLambertMaterial({ color: 0x2f5a2c }), trunkM = TM.trunk;
     let placed = 0;
     for (let i = 0; i < 400 && placed < 34; i++) {
-      const x = (rnd() * 2 - 1) * 100, z = (rnd() * 2 - 1) * 105, h = terrainFn(x, z);
-      if (h < 6) continue;
+      const x = (rnd() * 2 - 1) * 130, z = (rnd() * 2 - 1) * 137, h = terrainFn(x, z);
+      if (h < 8) continue;
       const sl = Math.abs(terrainFn(x + 1.5, z) - terrainFn(x - 1.5, z)) + Math.abs(terrainFn(x, z + 1.5) - terrainFn(x, z - 1.5));
       if (sl > 2.2) continue;
       const s = 0.9 + rnd() * 0.8, tr = new T.Mesh(new T.CylinderGeometry(0.35 * s, 0.5 * s, 3 * s, 6), trunkM); tr.position.set(x, h + 1.5 * s, z); mapGroup.add(tr);
@@ -953,9 +953,9 @@
     mblock(-3.69, -2.6, -12.0, -8.44, 1, 'tan', 'EN');      // O
     mblock(5.8, 8.1, -7.19, -4.81, 3, 'stone', 'WN');       // Q
     // R: ladrillo en cruz (cuerpo central + brazos E/O comunicados), base crema
-    mblock(-10.2, -9.05, -13.63, -11.15, 4, 'brickT', 'NS', { baseMat: TM.cream, fh: 3.9, openSides: 'EW', openSpan: [tz(-11.9), tz(-12.9)] });
-    mblock(-10.8, -10.2, -12.9, -11.9, 4, 'brickT', 'W', { baseMat: TM.cream, fh: 3.9, skip: 'E', stairs: false, ac: 0 });
-    mblock(-9.05, -8.44, -12.9, -11.9, 4, 'brickT', 'E', { baseMat: TM.cream, fh: 3.9, skip: 'W', stairs: false, ac: 0 });
+    mblock(-10.2, -9.05, -13.63, -11.15, 4, 'brickT', 'NS', { baseMat: TM.cream, fh: 3.9 * KS, openSides: 'EW', openSpan: [tz(-11.9), tz(-12.9)] });
+    mblock(-10.8, -10.2, -12.9, -11.9, 4, 'brickT', 'W', { baseMat: TM.cream, fh: 3.9 * KS, skip: 'E', stairs: false, ac: 0 });
+    mblock(-9.05, -8.44, -12.9, -11.9, 4, 'brickT', 'E', { baseMat: TM.cream, fh: 3.9 * KS, skip: 'W', stairs: false, ac: 0 });
     tTree(tx(-10.23), tz(-7.4), 1.15); // árbol del patio de K
     mblock(-0.8, 3.26, -15.05, -10.8, 1, 'light', 'NW');    // S nave
     // lucernarios de la nave
@@ -984,7 +984,7 @@
     tbox(tx(-4.7), 2.8, tz(-16.1), tx(-2.84), 3.1, tz(-17.25), TM.trim, false);
     for (const [px, pz] of [[tx(-4.6), tz(-16.2)], [tx(-2.95), tz(-16.2)], [tx(-4.6), tz(-17.15)], [tx(-2.95), tz(-17.15)]]) tbox(px - 0.15, 0, pz - 0.15, px + 0.15, 2.8, pz + 0.15, TM.dark);
     // árboles sueltos (los del modelo)
-    tTree(tx(-5.3), tz(-6.6), 1.0); tTree(tx(4.0), tz(4.6), 1.0); tTree(tx(9.8), tz(-3.6), 0.9); tTree(tx(11.0), tz(-5.5), 1.1); tTree(tx(-9.4), tz(-7.0), 0.7); tTree(tx(-10.8), tz(-6.3), 0.7);
+    tTree(tx(-5.3), tz(-6.6), 1.0); tTree(tx(4.0), tz(4.6), 1.0); tTree(tx(9.8), tz(-3.6), 0.9); tTree(tx(11.0), tz(-5.5), 1.1);
     // autobuses y coches como en el original
     tBus(tx(-4.4), tz(1.4), true); tBus(tx(-2.0), tz(1.2), true); tBus(tx(-6.1), tz(-9.6), false); tBus(tx(3.7), tz(-5.5), false);
     batchesDone();
@@ -1053,7 +1053,7 @@
   function clearMap() { for (let i = mapGroup.children.length - 1; i >= 0; i--) mapGroup.remove(mapGroup.children[i]); solids.length = 0; ramps.length = 0; }
   function buildMap(kind) {
     currentMap = kind; clearMap();
-    ARENA = kind === 'city' ? 96 : 44; terrainFn = null;
+    ARENA = kind === 'city' ? 125 : 44; terrainFn = null;
     const city = kind === 'city';
     sun.castShadow = city; sun.intensity = city ? 1.05 : 0.9;
     if (city) sun.position.set(105, 105, 70); else sun.position.set(50, 90, 30); // como en el original: sol del este
@@ -1530,6 +1530,8 @@
     if (net.active) enemies.forEach(e => (e.visible = false));
     setPreview(selectedChar);
     if (avatar && thirdPerson) setAvatar(selectedChar);
+    for (const id in remotes) { const o = remotes[id]; if (o.char !== 'stick' && o.char !== 'chad') continue;
+      const r = makeRemotePlayer(id, o.char); r.group.position.copy(o.group.position); r.target.copy(o.target); r.yaw = o.yaw; r.hp = o.hp; r.dead = o.dead; r.w = o.w; r.group.visible = o.group.visible; }
   }
   (function loadGlb() {
     if (typeof THREE.GLTFLoader === 'undefined') { console.warn('GLTFLoader no disponible'); return; }
