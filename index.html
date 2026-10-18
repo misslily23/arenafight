@@ -641,7 +641,7 @@
     ramps.push(collider(cx, cy, cz, w, 0.26, d, e));
     const nb = Math.max(3, Math.ceil(run / 0.8));
     for (let i = 0; i < nb; i++) {
-      const f0 = i / nb, f1 = (i + 1) / nb, top = y0 + rise * f0 - 0.3;
+      const f0 = i / nb, f1 = (i + 1) / nb, top = y0 + rise * f0 - 0.3 - (rise / run) * (PLAYER_R + 0.25);
       if (top - y0 < 0.25) continue;
       const ax = x0 + dx * f0, az = z0 + dz * f0, bx = x0 + dx * f1, bz = z0 + dz * f1, hwid = width / 2;
       const sx0 = Math.min(ax, bx) - (Math.abs(dz) >= Math.abs(dx) ? hwid : 0), sx1 = Math.max(ax, bx) + (Math.abs(dz) >= Math.abs(dx) ? hwid : 0);
@@ -723,6 +723,7 @@
   function tblock(o) {
     const { x0, z0, x1, z1, floors } = o, t = 0.4, M = TM, fh = o.fh || FH;
     const band = o.band || o.mat, W = x1 - x0, D = z1 - z0;
+    flatZones.push([Math.min(x0, x1), Math.max(x0, x1), Math.min(z0, z1), Math.max(z0, z1)]);
     const sill = 1.05, head = Math.min(fh - 0.75, 3.3 + (fh - FH) * 0.6);
     const matNS = o.matNS || o.mat, matEW = o.matEW || o.mat;
     function side(ax, fixed, a0, a1, yb, isDoor, mat, ground, sideName) {
@@ -894,7 +895,7 @@
     [-7, 4, -21, -18, 1.0], [3.8, 5.5, -21, -15.5, 1.1], [5.5, 8, -21, -8.5, 1.7], [8, 14.5, -21, -8.5, 3.0],
     [10.5, 14.5, -8.5, 7, 2.6], [8, 14.5, 7, 10.5, 2.2], [-1.3, 8, 8.3, 10.5, 2.0]
   ];
-  let terrainFn = null, cityBounds = null;
+  let terrainFn = null, cityBounds = null; const flatZones = [];
   function terrainH(x, z) { return terrainFn ? terrainFn(x, z) : 0; }
   function hash2(x, y) { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
   function vnoise(x, y) { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
@@ -912,6 +913,10 @@
       // fuera del recinto: todo montaña
       const ex = Math.max(Math.abs(mx) - 14, my - 10.3, -20.5 - my);
       if (ex > 0) h = Math.max(h, Math.min(1, ex / 0.8) * 4 * TS);
+      if (h > 0.05) for (const [a0, a1, b0, b1] of flatZones) {
+        const d = Math.max(a0 - x, x - a1, b0 - z, z - b1, 0) - 2.5;
+        if (d < 6) { const k = Math.max(0, d) / 6; h *= k * k * (3 - 2 * k); }
+      }
       return h > 0.05 ? h : -0.08;
     };
   }
@@ -971,7 +976,7 @@
 
   function buildTilted() {
     const floors = [];
-    tiltedMats(); batches = new Map(); srand(20180124);
+    tiltedMats(); batches = new Map(); srand(20180124); flatZones.length = 0;
     // suelo: pavimento de piedra
     const gp = new T.PlaneGeometry(600, 600); const uv = gp.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 150, uv.getY(i) * 150);
     const ground = new T.Mesh(gp, TM.paving); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; mapGroup.add(ground); floors.push(ground);
@@ -979,8 +984,6 @@
     tRoad(-7.8, 12, -0.03, 1.83, true); tRoad(-7.6, -5.55, -17.2, -0.03, true); tRoad(-12.5, 5.1, -10.6, -8.6, true);
     tRoad(3.1, 5.1, -10.6, -0.03, true); tRoad(3.9, 5.3, 1.83, 7.0, false); tRoad(-2.4, -1.0, -17.0, -10.6, false);
     tCrosswalk(tx(-6.6), tz(-1.2), true, 12); tCrosswalk(tx(4.1), tz(-1.2), true, 12); tCrosswalk(tx(-3.0), tz(-9.6), false, 12); tCrosswalk(tx(2.5), tz(-9.6), false, 12);
-    // colinas y acantilados que rodean el valle
-    buildTerrain(floors);
     // ----- edificios (calcados) -----
     mblock(1.6, 3.1, 3.1, 6.1, 3, 'stone', 'WS');           // A1
     mblock(-0.57, 1.67, 2.34, 3.93, 3, 'stone', 'SN');      // A2
@@ -1038,6 +1041,8 @@
     batchesDone();
     car(tx(-1.0), tz(0.4), Math.PI / 2, 0x3b6fd0); car(tx(6.0), tz(0.7), Math.PI / 2, 0xd0d0d0); car(tx(1.5), tz(-9.8), Math.PI / 2, 0xc33b4b);
     car(tx(-7.0), tz(-14.0), 0, 0xe0b23a); car(tx(4.5), tz(-8.5), 0, 0x2fa35a); car(tx(-1.6), tz(-15.2), 0, 0x9d4bc2);
+    // colinas y acantilados que rodean el valle (después de los edificios: se aplana bajo ellos)
+    buildTerrain(floors);
     // límites invisibles
     { const bx0 = tx(-13.6), bx1 = tx(13.6), bz0 = tz(9.9), bz1 = tz(-20.1); cityBounds = [bx0, bx1, bz0, bz1];
       for (const [x0, z0, x1, z1] of [[bx0 - 4, bz0 - 4, bx1 + 4, bz0], [bx0 - 4, bz1, bx1 + 4, bz1 + 4], [bx0 - 4, bz0, bx0, bz1], [bx1, bz0, bx1 + 4, bz1]])
@@ -1315,7 +1320,7 @@
     if (reloading || player.dead) return;
     const w = WEAPONS[curWeapon], st = ammo[curWeapon];
     if (st.mag <= 0) { reload(); return; }
-    st.mag--; updateAmmo(); sfx(curWeapon);
+    st.mag--; updateAmmo(); sfx(curWeapon); if (st.mag <= 0) setTimeout(reload, 180); // recarga automática
     weaponGroup.position.z = gunBaseZ + 0.06; weaponGroup.rotation.x = -0.09; // retroceso
     flashMesh.visible = true; flashMesh.rotation.z = Math.random() * 6.28; flashMesh.scale.setScalar(0.8 + Math.random() * 0.6);
     flashMesh.userData.t = 0.04;
@@ -1376,7 +1381,7 @@
   // empuja una posición fuera de todas las cajas sólidas (colisión circular horizontal)
   function collideCircle(pos, r) {
     let hit = false;
-    const yLo = pos.y + 0.2, yHi = pos.y + PLAYER_H - 0.2;
+    const yLo = pos.y + STEP - 0.05, yHi = pos.y + PLAYER_H - 0.2; // se puede subir a bordes de hasta un escalón
     for (const s of solids) {
       const b = boxDims(s), hw = b.hw, hh = b.hh, hd = b.hd;
       const minY = s.position.y - hh, maxY = s.position.y + hh;
@@ -1424,6 +1429,8 @@
     const ox = player.pos.x, oz = player.pos.z;
     player.pos.x += move.x * dt; player.pos.z += move.z * dt;
     resolveWalls();
+    // anti-atravesar: una pared nunca puede empujarte más allá de lo que te has movido este frame
+    if (Math.hypot(player.pos.x - ox, player.pos.z - oz) > Math.hypot(move.x, move.z) * dt + 0.9) { player.pos.x = ox; player.pos.z = oz; }
     // pendiente del terreno demasiado empinada = pared
     if (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + STEP + 0.4) { player.pos.x = ox; player.pos.z = oz; }
     if (cityBounds) { player.pos.x = Math.max(cityBounds[0] + 1, Math.min(cityBounds[1] - 1, player.pos.x)); player.pos.z = Math.max(cityBounds[2] + 1, Math.min(cityBounds[3] - 1, player.pos.z)); }
@@ -1549,7 +1556,7 @@
   function animate() {
     requestAnimationFrame(animate);
     const now = performance.now(); let dt = (now - last) / 1000; last = now; if (dt > 0.05) dt = 0.05;
-    if (running) update(dt);
+    if (running) { if (window.__botTick) window.__botTick(dt); update(dt); }
     renderer.render(scene, camera);
     if (!running && pChar) { pChar.rotation.y += 0.012; pRenderer.render(pScene, pCam); }
   }
@@ -1874,6 +1881,158 @@
   });
   document.addEventListener('keyup', (e) => { keys[e.code] = false; });
   window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+  // ---------- Bot de pruebas automático (build.html?bot=1 [&host=1 | &join=CODIGO] [&map=city|desert]) ----------
+  // Juega solo (moverse, subir escaleras, disparar) y va apuntando errores en un informe: window.__botReport()
+  (function testBot() {
+    const Q = new URLSearchParams(location.search);
+    if (!Q.has('bot')) return;
+    const R = { started: Date.now(), mode: Q.has('host') ? 'host' : Q.has('join') ? 'join' : 'solo', map: Q.get('map') || 'city',
+      errors: [], issues: {}, stairs: { tested: 0, ok: 0, fail: [] }, combat: { shots: 0, hits: 0, kills: 0, deaths: 0 },
+      fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
+    window.__botReport = () => JSON.parse(JSON.stringify(R));
+    match.limitSec = +(Q.get('secs') || 90); R.rounds = [];
+    window.__botDbg = { solids, ramps, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
+    const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
+    const issue = (kind, pos, extra) => {
+      const key = kind + '@' + Math.round(pos.x / 4) * 4 + ',' + Math.round(pos.y) + ',' + Math.round(pos.z / 4) * 4;
+      const it = R.issues[key] || (R.issues[key] = { kind, x: +pos.x.toFixed(1), y: +pos.y.toFixed(1), z: +pos.z.toFixed(1), n: 0, extra: extra || '' });
+      if (it.n++ === 0) log('ISSUE ' + kind + ' ' + it.x + ',' + it.y + ',' + it.z + ' ' + (extra || ''));
+    };
+    window.addEventListener('error', e => { R.errors.push(String(e.message)); log('JS ERROR ' + e.message); });
+    window.addEventListener('unhandledrejection', e => { const m = String(e.reason && e.reason.message || e.reason); if (!/pointer lock/i.test(m)) { R.errors.push(m); log('PROMISE ' + m); } });
+    // contadores de impactos
+    const _de = damageEnemy; damageEnemy = function (e, d, h) { R.combat.hits++; return _de(e, d, h); };
+    const _sh = sendHit; sendHit = function (v, d) { R.combat.hits++; return _sh(v, d); };
+    const _fire = fire; fire = function () { const m = ammo[curWeapon].mag; _fire(); if (ammo[curWeapon].mag < m) R.combat.shots++; };
+    // panel en pantalla
+    const panel = document.createElement('div');
+    panel.style.cssText = 'position:fixed;left:8px;bottom:90px;z-index:50;background:rgba(0,0,0,.65);color:#9fe;font:11px monospace;padding:6px 8px;border-radius:6px;max-width:330px;white-space:pre-wrap;pointer-events:none';
+    document.body.appendChild(panel);
+
+    selectedMap = R.map === 'desert' ? 'desert' : 'city';
+    const chars = CHARS.map(c => c.id); selectedChar = chars[(Math.random() * chars.length) | 0];
+    document.getElementById('nameInput').value = 'Bot-' + R.mode;
+    function go() { running = true; menu.style.display = 'none'; document.getElementById('mpReady').style.display = 'none'; }
+    setTimeout(async () => {
+      if (R.mode === 'host') {
+        await startHost();
+        const iv = setInterval(() => { if (net.peer && net.peer.open) { clearInterval(iv); window.__botRoomCode = net.peer.id.replace('af-', ''); log('sala ' + window.__botRoomCode);
+          net.active = true; player.inGame = true; startPlay(selectedMap); go(); } }, 200);
+      } else if (R.mode === 'join') { await startJoin(Q.get('join')); go(); }
+      else { net.active = false; player.inGame = false; startPlay(selectedMap); go(); }
+    }, 1500);
+
+    // ---- objetivos ----
+    const V = (x, y, z) => new T.Vector3(x, y, z);
+    function rampEnds(r) {
+      r.updateMatrixWorld();
+      const pts = [[-0.5, 0.5, -0.5], [0.5, 0.5, -0.5], [-0.5, 0.5, 0.5], [0.5, 0.5, 0.5]].map(q => V(...q).applyMatrix4(r.matrixWorld)).sort((a, b) => b.y - a.y);
+      return { hi: pts[0].clone().add(pts[1]).multiplyScalar(0.5), lo: pts[2].clone().add(pts[3]).multiplyScalar(0.5) };
+    }
+    function insideSolid(pos) {
+      const y = pos.y + 1.2;
+      for (const sd of solids) { const b = boxDims(sd), q = sd.position;
+        if (Math.abs(pos.x - q.x) < b.hw - 0.15 && Math.abs(pos.z - q.z) < b.hd - 0.15 && Math.abs(y - q.y) < b.hh - 0.05) return true; }
+      return false;
+    }
+    function bounds() { return cityBounds || [-ARENA + 2, ARENA - 2, -ARENA + 2, ARENA - 2]; }
+    function randomGroundPoint() {
+      const B = bounds();
+      for (let i = 0; i < 40; i++) { const p = V(B[0] + Math.random() * (B[1] - B[0]), 0, B[2] + Math.random() * (B[3] - B[2]));
+        if (terrainH(p.x, p.z) < 0.4 && !insideSolid(p)) return p; }
+      return spawnPoint.clone();
+    }
+    let noAmmoT = 0, prevEnded = false;
+    let stairIdx = R.mode === 'join' ? 27 : 0, task = null, taskT = 0, lastPos = null, stuckT = 0, moveCheckT = 0, unstickT = 0, strafe = 1, strafeT = 0, fpsAcc = 0, fpsN = 0, fpsT = 0, wasDead = false, lastScore = 0, weaponT = 8;
+    function newTask() {
+      taskT = 0;
+      if (Math.random() < 0.6 && ramps.length) {   // prueba de escalera (todas, por turnos): ponerse al pie y subir
+        const r = ramps[(stairIdx++) % ramps.length], e = rampEnds(r), dir = e.hi.clone().sub(e.lo).setY(0).normalize();
+        const start = e.lo.clone().addScaledVector(dir, -0.7);
+        player.pos.set(start.x, e.lo.y + 0.05, start.z); player.vel.set(0, 0, 0); yaw = Math.atan2(-dir.x, -dir.z); pitch = 0;
+        R.stairs.tested++; task = { kind: 'stairs', lo: e.lo, hi: e.hi, target: e.hi.clone().addScaledVector(dir, 1.2), ramp: r };
+      } else task = { kind: 'roam', target: randomGroundPoint() };
+    }
+    function face(target, dt, rate) {
+      const dx = target.x - player.pos.x, dz = target.z - player.pos.z, want = Math.atan2(-dx, -dz);
+      let d = want - yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      yaw += Math.max(-rate * dt, Math.min(rate * dt, d)); return Math.abs(d);
+    }
+    const ray = new T.Raycaster();
+    function visibleFoe() {
+      const eye = V(player.pos.x, player.pos.y + EYE, player.pos.z); let best = null, bd = 70;
+      const cands = net.active ? Object.values(remotes).filter(r => !r.dead && r.group.visible).map(r => r.group.position) : enemies.filter(e => e.visible).map(e => e.position);
+      if (net.active) { R.net.maxRemotes = Math.max(R.net.maxRemotes, cands.length); if (cands.length) R.net.remotesSeen++; }
+      for (const p of cands) { const tgt = V(p.x, p.y + 2.2, p.z), d = tgt.distanceTo(eye); if (d > bd) continue;
+        ray.set(eye, tgt.clone().sub(eye).normalize()); ray.far = d - 0.5; if (ray.intersectObjects(solids, false).length) continue; best = tgt; bd = d; }
+      return best;
+    }
+    window.__botTick = function (dt) {
+      if (matchEnded && !prevEnded) { R.rounds.push({ n: R.rounds.length + 1, board: JSON.parse(JSON.stringify(boardList)), score, combat: Object.assign({}, R.combat), stairs: { ok: R.stairs.ok, tested: R.stairs.tested }, issues: Object.keys(R.issues).length, errors: R.errors.length }); log('FIN PARTIDA ' + R.rounds.length); }
+      prevEnded = matchEnded;
+      // fps
+      fpsAcc += dt; fpsN++; fpsT += dt;
+      if (fpsT > 2) { const f = fpsN / fpsAcc; R.fps.min = Math.min(R.fps.min, +f.toFixed(1)); R.fps.samples.push(+f.toFixed(1)); if (R.fps.samples.length > 60) R.fps.samples.shift(); if (f < 15) issue('low_fps', player.pos, f.toFixed(0) + 'fps'); fpsAcc = 0; fpsN = 0; fpsT = 0; }
+      for (const k of ['KeyW', 'KeyA', 'KeyD', 'KeyS', 'Space']) keys[k] = false;
+      firing = false;
+      if (player.dead) { wasDead = true; return; }
+      if (wasDead) { wasDead = false; R.combat.deaths++; log('muerto'); task = null;
+        if (insideSolid(player.pos) || (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 0.5)) issue('bad_spawn', player.pos); }
+      if (ammo[curWeapon].mag <= 0 && !reloading) { noAmmoT += dt; if (noAmmoT > 2) { issue('reload_stuck', player.pos, curWeapon); noAmmoT = 0; } } else noAmmoT = 0;
+      if (score !== lastScore) { R.combat.kills += Math.max(0, score - lastScore); lastScore = score; }
+      // sanidad del mundo
+      const B = bounds();
+      if (player.pos.x < B[0] - 0.5 || player.pos.x > B[1] + 0.5 || player.pos.z < B[2] - 0.5 || player.pos.z > B[3] + 0.5) issue('out_of_bounds', player.pos);
+      if (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 1.0) issue('under_terrain', player.pos);
+      if (player.pos.y < -1) issue('fell_below_map', player.pos);
+      if (insideSolid(player.pos)) issue('inside_solid', player.pos, task ? task.kind : '');
+      R.maxY = Math.max(R.maxY, +player.pos.y.toFixed(1));
+      // cambiar de arma de vez en cuando
+      weaponT -= dt; if (weaponT <= 0) { weaponT = 10 + Math.random() * 10; setWeapon(['rifle', 'shotgun', 'sniper'][(Math.random() * 3) | 0]); }
+      // combate
+      const foe = visibleFoe();
+      if (foe) {
+        const err = face(foe, dt, 6);
+        const eye = player.pos.y + EYE, hd = Math.hypot(foe.x - player.pos.x, foe.z - player.pos.z);
+        pitch += (Math.atan2(foe.y - eye, hd) - pitch) * Math.min(1, dt * 8);
+        strafeT -= dt; if (strafeT <= 0) { strafeT = 0.6 + Math.random(); strafe = -strafe; }
+        keys[strafe > 0 ? 'KeyD' : 'KeyA'] = true;
+        if (err < 0.08) { if (WEAPONS[curWeapon].auto) firing = true; else if (Math.random() < dt * 2.5) fire(); }
+        return;
+      }
+      pitch *= 0.9;
+      if (!task) newTask();
+      taskT += dt;
+      const tgt = task.target, dist = Math.hypot(tgt.x - player.pos.x, tgt.z - player.pos.z);
+      // ¿escalera completada?
+      if (task.kind === 'stairs') {
+        if (player.pos.y >= task.hi.y - 0.6) { R.stairs.ok++; log('escalera OK hasta y=' + task.hi.y.toFixed(1)); task = null; return; }
+        if (taskT > 9) { R.stairs.fail.push({ lo: [+task.lo.x.toFixed(1), +task.lo.y.toFixed(1), +task.lo.z.toFixed(1)], hi: [+task.hi.x.toFixed(1), +task.hi.y.toFixed(1), +task.hi.z.toFixed(1)], reached: +player.pos.y.toFixed(1) });
+          issue('stairs_fail', task.lo, 'llegó a y=' + player.pos.y.toFixed(1) + ' de ' + task.hi.y.toFixed(1)); task = null; return; }
+      } else if (dist < 2 || taskT > 30) { task = null; return; }
+      face(tgt, dt, 4);
+      keys['KeyW'] = true; keys['ShiftLeft'] = task.kind === 'roam';
+      // atasco
+      moveCheckT += dt;
+      if (moveCheckT > 1.5) {
+        if (lastPos && lastPos.distanceTo(player.pos) < 0.6) { stuckT += moveCheckT; } else stuckT = 0;
+        if (lastPos) R.distance += lastPos.distanceTo(player.pos);
+        lastPos = player.pos.clone(); moveCheckT = 0;
+        if (stuckT >= 3) { R.stuck++; if (task.kind === 'stairs') issue('stuck_on_stairs', player.pos); unstickT = 1.2; stuckT = 0; if (task.kind === 'roam') task = null; }
+      }
+      if (unstickT > 0) { unstickT -= dt; keys['Space'] = true; keys[strafe > 0 ? 'KeyD' : 'KeyA'] = true; yaw += dt * 2; }
+    };
+    setInterval(() => {
+      const r = R, iss = Object.values(r.issues);
+      panel.textContent = 'BOT ' + r.mode + ' ' + (window.__botRoomCode || '') + '  t=' + ((Date.now() - r.started) / 1000 | 0) + 's\n' +
+        'fps min ' + r.fps.min + '  último ' + (r.fps.samples[r.fps.samples.length - 1] || '-') + '\n' +
+        'escaleras ' + r.stairs.ok + '/' + r.stairs.tested + '  atascos ' + r.stuck + '  maxY ' + r.maxY + '\n' +
+        'disparos ' + r.combat.shots + ' impactos ' + r.combat.hits + ' kills ' + r.combat.kills + ' muertes ' + r.combat.deaths + '\n' +
+        (net.active ? 'rivales vistos ' + r.net.maxRemotes + '\n' : '') +
+        'errores JS ' + r.errors.length + '  incidencias ' + iss.length + '\n' + r.log.slice(-5).join('\n');
+    }, 500);
+  })();
 })();
 </script>
 </body>

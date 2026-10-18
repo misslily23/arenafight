@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>ArenaFight · Bots de prueba</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0d1520; color: #dce7f2; font: 13px system-ui, sans-serif; }
+  #wrap { display: flex; height: 62%; gap: 4px; }
+  iframe { flex: 1; border: 0; background: #000; }
+  #bar { padding: 6px 10px; display: flex; gap: 10px; align-items: center; }
+  button { background: #2d5f7a; color: #fff; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 700; }
+  pre { margin: 0 10px; height: calc(38% - 44px); overflow: auto; background: #08101a; padding: 8px; border-radius: 6px; font-size: 11px; }
+</style></head>
+<body>
+<div id="wrap"><iframe id="a"></iframe><iframe id="b"></iframe></div>
+<div id="bar"><b>2 bots online (anfitrión + invitado)</b> <span id="st">arrancando…</span>
+  <button id="copy">Copiar informe</button> <label>mapa <select id="map"><option>city</option><option>desert</option></select></label> <button id="restart">Reiniciar</button></div>
+<pre id="out"></pre>
+<script>
+  const A = document.getElementById('a'), B = document.getElementById('b'), st = document.getElementById('st'), out = document.getElementById('out');
+  const map = new URLSearchParams(location.search).get('map') || 'city';
+  document.getElementById('map').value = map;
+  document.getElementById('restart').onclick = () => { location.search = '?map=' + document.getElementById('map').value; };
+  A.src = 'index.html?bot=1&host=1&map=' + map;
+  const iv = setInterval(() => {
+    const code = A.contentWindow && A.contentWindow.__botRoomCode;
+    if (code) { clearInterval(iv); st.textContent = 'sala ' + code; B.src = 'index.html?bot=1&join=' + code + '&map=' + map; }
+  }, 500);
+  function report() {
+    const ra = A.contentWindow && A.contentWindow.__botReport ? A.contentWindow.__botReport() : null;
+    const rb = B.contentWindow && B.contentWindow.__botReport ? B.contentWindow.__botReport() : null;
+    return { host: ra, join: rb };
+  }
+  setInterval(() => {
+    const r = report(), lines = [];
+    for (const k of ['host', 'join']) { const x = r[k]; if (!x) { lines.push(k + ': (sin datos)'); continue; }
+      const iss = Object.values(x.issues).sort((a, b) => b.n - a.n);
+      lines.push(`== ${k} ==  partidas ${(x.rounds || []).length} | fps min ${x.fps.min} | escaleras ${x.stairs.ok}/${x.stairs.tested} | disparos ${x.combat.shots} impactos ${x.combat.hits} kills ${x.combat.kills} muertes ${x.combat.deaths} | rivales vistos ${x.net.maxRemotes} | errores ${x.errors.length}`);
+      for (const i of iss.slice(0, 12)) lines.push(`  [${i.kind}] x${i.n} en ${i.x},${i.y},${i.z} ${i.extra}`);
+      for (const e of x.errors.slice(-5)) lines.push('  ERROR ' + e);
+    }
+    out.textContent = lines.join('\n');
+  }, 1000);
+  window.__fullReport = report;
+  document.getElementById('copy').onclick = () => navigator.clipboard.writeText(JSON.stringify(report(), null, 1));
+</script>
+</body></html>
