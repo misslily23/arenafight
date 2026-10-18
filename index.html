@@ -560,6 +560,7 @@
       grass: L(canvasTex(128, (x, s) => { x.fillStyle = '#5d8c38'; x.fillRect(0, 0, s, s); speckle(x, s, 1500, 0.22); })),
       paving: L(canvasTex(256, (x, s) => { x.fillStyle = '#9c8f76'; x.fillRect(0, 0, s, s); speckle(x, s, 1200, 0.14); x.fillStyle = 'rgba(60,52,40,.45)'; for (let i = 0; i <= s; i += 64) { x.fillRect(i, 0, 2, s); x.fillRect(0, i, s, 2); } })),
       asphalt: L(canvasTex(128, (x, s) => { x.fillStyle = '#4a494c'; x.fillRect(0, 0, s, s); speckle(x, s, 1200, 0.15); })),
+      fabR: C(0xa8433c), fabB: C(0x3e5f8f), fabG: C(0x5c7a45), sheet: C(0xe9e4da), metal: C(0x9aa0a6), screen: C(0x1a1d22), rug: C(0x8c3b3b), book1: C(0x9b3b2f), book2: C(0x2f5a8a), book3: C(0xc9a23a), counter: C(0xd9d3c4), crate: C(0x9b7448),
       tile: C(0x8a4535), slate: C(0x6d717a), red: C(0xc8392f), yellow: C(0xe2c547), green: C(0x4f8a35), leaf: C(0x3f7a2e), trunk: C(0x6b4a2e)
     };
     return TM;
@@ -608,6 +609,69 @@
   // Bloque de edificio entrable de varias plantas: paredes con ventanas reales, forjados con hueco,
   // escaleras alternas (pozo A/B) hasta la azotea con antepecho.
   // arco decorativo (medio toro) sobre un hueco
+  // ---------- Aleatoriedad con semilla: el mapa (y sus muebles) sale igual en todos los clientes ----------
+  let rs = 1;
+  function srand(seed) { rs = (seed >>> 0) || 1; }
+  function rnd() { rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0; return rs / 4294967296; }
+  // ---------- Muebles ----------
+  // pieza en coords locales rotada rot*90º alrededor de (cx,cz); "delante" = -z local
+  function piece(cx, y, cz, rot) {
+    const tr = (lx, lz) => rot === 0 ? [lx, lz] : rot === 1 ? [lz, -lx] : rot === 2 ? [-lx, -lz] : [-lz, lx];
+    return (ax0, ay0, az0, ax1, ay1, az1, mat, solid) => {
+      const [p0x, p0z] = tr(ax0, az0), [p1x, p1z] = tr(ax1, az1);
+      tbox(cx + Math.min(p0x, p1x), y + ay0, cz + Math.min(p0z, p1z), cx + Math.max(p0x, p1x), y + ay1, cz + Math.max(p0z, p1z), mat, !!solid);
+    };
+  }
+  const FURN = {
+    table(P, M) { P(-0.9, 0.72, -0.55, 0.9, 0.82, 0.55, M.wood, true); for (const [a, b] of [[-0.8, -0.45], [0.8, -0.45], [-0.8, 0.45], [0.8, 0.45]]) P(a - 0.05, 0, b - 0.05, a + 0.05, 0.72, b + 0.05, M.wood);
+      for (const sx of [-0.5, 0.5]) for (const sz of [-1, 1]) { P(sx - 0.22, 0.42, sz * 0.95 - 0.22, sx + 0.22, 0.48, sz * 0.95 + 0.22, M.wood); P(sx - 0.22, 0.48, sz * 1.15 - 0.04, sx + 0.22, 1.05, sz * 1.15 + 0.04, M.wood); } },
+    sofa(P, M, c) { P(-1.2, 0, -0.45, 1.2, 0.45, 0.45, c, true); P(-1.2, 0.45, 0.25, 1.2, 1.0, 0.45, c, true); P(-1.2, 0.45, -0.45, -1.0, 0.72, 0.45, c); P(1.0, 0.45, -0.45, 1.2, 0.72, 0.45, c);
+      P(-0.5, 0, -1.35, 0.5, 0.42, -0.85, M.wood, true); P(-1.3, 0, -1.9, 1.3, 0.02, -0.3, M.rug); },
+    bed(P, M, c) { P(-1.0, 0, -1.1, 1.0, 0.45, 1.1, M.wood, true); P(-0.95, 0.45, -1.05, 0.95, 0.62, 1.05, M.sheet); P(-0.95, 0.62, -1.05, 0.95, 0.66, 0.3, c);
+      P(-0.7, 0.62, 0.55, 0.7, 0.8, 0.95, M.sheet); P(-1.0, 0.45, 1.05, 1.0, 1.15, 1.15, M.wood); P(1.15, 0, 0.55, 1.6, 0.6, 1.05, M.wood, true); },
+    desk(P, M) { P(-0.85, 0.72, -0.4, 0.85, 0.78, 0.4, M.wood, true); P(-0.85, 0, -0.4, -0.75, 0.72, 0.4, M.wood); P(0.75, 0, -0.4, 0.85, 0.72, 0.4, M.wood);
+      P(-0.35, 0.78, 0.1, 0.35, 1.3, 0.16, M.screen); P(-0.05, 0.78, 0.16, 0.05, 0.95, 0.25, M.metal); P(-0.3, 0.42, -1.0, 0.3, 0.5, -0.45, M.screen); P(-0.3, 0.5, -1.05, 0.3, 1.1, -0.98, M.screen); },
+    shelf(P, M) { P(-0.85, 0, 0.6, 0.85, 2.0, 1.0, M.wood, true); const bk = [M.book1, M.book2, M.book3];
+      for (let r = 0; r < 3; r++) for (let i = 0; i < 6; i++) { const x = -0.75 + i * 0.25 + rnd() * 0.05, h = 0.35 + rnd() * 0.12; P(x, 0.15 + r * 0.62, 0.52, x + 0.18, 0.15 + r * 0.62 + h, 0.6, bk[(i + r) % 3]); } },
+    fridge(P, M) { P(-0.45, 0, 0.2, 0.45, 1.95, 1.0, M.white, true); P(0.3, 0.9, 0.17, 0.35, 1.6, 0.2, M.metal); },
+    counter(P, M) { P(-1.3, 0, -0.35, 1.3, 0.92, 0.35, M.wood, true); P(-1.35, 0.92, -0.4, 1.35, 1.0, 0.4, M.counter); P(-0.25, 1.0, -0.15, 0.25, 1.3, 0.15, M.metal); },
+    kitchen(P, M) { P(-1.6, 0, 0.35, 1.6, 0.92, 1.0, M.white, true); P(-1.65, 0.92, 0.3, 1.65, 1.0, 1.05, M.counter); P(0.4, 1.0, 0.5, 1.0, 1.05, 0.9, M.metal); P(-1.6, 1.7, 0.6, 1.6, 2.4, 1.0, M.white); },
+    tv(P, M) { P(-0.9, 0, 0.5, 0.9, 0.55, 0.95, M.wood, true); P(-0.75, 0.55, 0.7, 0.75, 1.4, 0.76, M.screen); P(-0.8, 0, -1.4, 0.8, 0.02, 0.2, M.rug); },
+    crates(P, M) { P(-0.6, 0, -0.6, 0.6, 1.2, 0.6, M.crate, true); P(0.7, 0, -0.5, 1.6, 0.9, 0.4, M.crate, true); P(-0.4, 1.2, -0.4, 0.4, 2.0, 0.4, M.crate, true); },
+    plant(P, M) { P(-0.3, 0, -0.3, 0.3, 0.55, 0.3, M.trim); P(-0.45, 0.55, -0.45, 0.45, 1.35, 0.45, M.leaf); },
+    cafe(P, M) { P(-0.45, 0.72, -0.45, 0.45, 0.78, 0.45, M.white, true); P(-0.06, 0, -0.06, 0.06, 0.72, 0.06, M.metal);
+      for (const b of [-0.85, 0.85]) { P(-0.22, 0.42, b - 0.22, 0.22, 0.48, b + 0.22, M.fabR); P(-0.05, 0, b - 0.05, 0.05, 0.42, b + 0.05, M.metal); } }
+  };
+  const THEMES = {
+    shop: ['counter', 'shelf', 'shelf', 'crates', 'plant', 'cafe'],
+    cafe: ['cafe', 'cafe', 'cafe', 'counter', 'plant', 'fridge'],
+    home: ['sofa', 'bed', 'table', 'tv', 'shelf', 'kitchen', 'plant', 'bed', 'fridge'],
+    office: ['desk', 'desk', 'desk', 'shelf', 'plant', 'table', 'crates']
+  };
+  // reparte muebles en una rejilla por planta sin tapar escaleras, puertas ni pasos abiertos
+  function furnishBlock(o, x0, z0, x1, z1, floors, fh, t, canStairs, wells, zs, ze) {
+    const M = TM, ix0 = x0 + t + 0.3, ix1 = x1 - t - 0.3, iz0 = z0 + t + 0.3, iz1 = z1 - t - 0.3;
+    if (ix1 - ix0 < 3 || iz1 - iz0 < 3) return;
+    const nx = Math.max(1, Math.floor((ix1 - ix0) / 3.7)), nz = Math.max(1, Math.floor((iz1 - iz0) / 3.7));
+    const sx = (ix1 - ix0) / nx, sz = (iz1 - iz0) / nz, fabs = [M.fabR, M.fabB, M.fabG];
+    const doors = o.doors || '', open = (o.openSides || '') + (o.skip || ''), bt = rnd(), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    for (let f = 0; f < floors; f++) {
+      const theme = THEMES[o.theme || (f === 0 ? (bt < 0.5 ? 'shop' : 'cafe') : ((f + (bt * 4 | 0)) % 2 ? 'home' : 'office'))];
+      for (let i = 0; i < nx; i++) for (let k = 0; k < nz; k++) {
+        const cx = ix0 + sx * (i + 0.5), cz = iz0 + sz * (k + 0.5);
+        if (canStairs && wells.some(([h0, h1]) => cx > h0 - 1.7 && cx < h1 + 1.7 && cz > zs - 1.7 && cz < ze + 1.7)) continue;
+        if (f === 0 && ((doors.includes('N') && Math.abs(cx - mx) < 2.8 && cz < z0 + 3.6) || (doors.includes('S') && Math.abs(cx - mx) < 2.8 && cz > z1 - 3.6) ||
+            (doors.includes('W') && Math.abs(cz - mz) < 2.8 && cx < x0 + 3.6) || (doors.includes('E') && Math.abs(cz - mz) < 2.8 && cx > x1 - 3.6) || (o.arch && rnd() < 0.5))) continue;
+        if ((open.includes('W') && cx < x0 + 2.8) || (open.includes('E') && cx > x1 - 2.8) || (open.includes('N') && cz < z0 + 2.8) || (open.includes('S') && cz > z1 - 2.8)) continue;
+        if (rnd() < 0.42) continue;
+        const kind = theme[(rnd() * theme.length) | 0];
+        // contra la pared más cercana (el "fondo" local +z mira a la pared)
+        let rot = (rnd() * 4) | 0;
+        if (k === nz - 1) rot = 0; else if (k === 0) rot = 2; else if (i === nx - 1) rot = 3; else if (i === 0) rot = 1;
+        FURN[kind](piece(cx, f * fh + 0.04, cz, rot), M, fabs[(rnd() * 3) | 0]);
+      }
+    }
+  }
   function tArch(cx, cy, cz, r, alongX, mat) {
     const g = new T.TorusGeometry(r, 0.18, 6, 14, Math.PI);
     if (!alongX) g.rotateY(Math.PI / 2);
@@ -679,6 +743,7 @@
       const ax0 = x0 + 3 + ((k * 7.3) % Math.max(1, W - 7)), az0 = z1 - 4.5 - ((k * 3.1) % Math.max(1, D - 8));
       tbox(ax0, ry, az0, ax0 + 2.2, ry + 1.3, az0 + 1.6, M.trim); tbox(ax0 + 0.3, ry + 1.3, az0 + 0.3, ax0 + 1.9, ry + 1.45, az0 + 1.3, M.dark, false);
     }
+    if (o.furnish !== false) furnishBlock(o, x0, z0, x1, z1, floors, fh, t, canStairs, wells, zs, ze);
     return ry;
   }
   // rect en coordenadas del MODELO -> bloque
@@ -703,7 +768,7 @@
   function tClockTower(cx, cz) {
     const M = TM, b = 9.4, s = 7.2, fl = 7, fh = 3.6;
     // torre de ladrillo crema, planta baja de piedra con arcos; escalera interior hasta el campanario
-    tblock({ x0: cx - s / 2, x1: cx + s / 2, z0: cz - s / 2, z1: cz + s / 2, floors: fl, fh, mat: M.cream, baseMat: M.stoneL, band: M.trim, corner: M.trim, doors: 'S', arch: true, winW: 1.1, parapetH: 0, ac: 0 });
+    tblock({ x0: cx - s / 2, x1: cx + s / 2, z0: cz - s / 2, z1: cz + s / 2, floors: fl, fh, mat: M.cream, baseMat: M.stoneL, band: M.trim, corner: M.trim, doors: 'S', arch: true, winW: 1.1, parapetH: 0, ac: 0, furnish: false });
     // zócalo ancho de piedra (base)
     tbox(cx - b / 2, 0, cz - b / 2, cx + b / 2, 1.0, cz - s / 2, M.stoneL); tbox(cx - b / 2, 0, cz + s / 2, cx - 1.6, 1.0, cz + b / 2, M.stoneL); tbox(cx + 1.6, 0, cz + s / 2, cx + b / 2, 1.0, cz + b / 2, M.stoneL);
     tbox(cx - b / 2, 0, cz - s / 2, cx - s / 2, 1.0, cz + s / 2, M.stoneL); tbox(cx + s / 2, 0, cz - s / 2, cx + b / 2, 1.0, cz + s / 2, M.stoneL);
@@ -824,11 +889,11 @@
     const pineM = new T.MeshLambertMaterial({ color: 0x2f5a2c }), trunkM = TM.trunk;
     let placed = 0;
     for (let i = 0; i < 400 && placed < 34; i++) {
-      const x = (Math.random() * 2 - 1) * 100, z = (Math.random() * 2 - 1) * 105, h = terrainFn(x, z);
+      const x = (rnd() * 2 - 1) * 100, z = (rnd() * 2 - 1) * 105, h = terrainFn(x, z);
       if (h < 6) continue;
       const sl = Math.abs(terrainFn(x + 1.5, z) - terrainFn(x - 1.5, z)) + Math.abs(terrainFn(x, z + 1.5) - terrainFn(x, z - 1.5));
       if (sl > 2.2) continue;
-      const s = 0.9 + Math.random() * 0.8, tr = new T.Mesh(new T.CylinderGeometry(0.35 * s, 0.5 * s, 3 * s, 6), trunkM); tr.position.set(x, h + 1.5 * s, z); mapGroup.add(tr);
+      const s = 0.9 + rnd() * 0.8, tr = new T.Mesh(new T.CylinderGeometry(0.35 * s, 0.5 * s, 3 * s, 6), trunkM); tr.position.set(x, h + 1.5 * s, z); mapGroup.add(tr);
       for (let k = 0; k < 3; k++) { const c = new T.Mesh(new T.ConeGeometry((2.6 - k * 0.6) * s, 3.4 * s, 8), pineM); c.position.set(x, h + (3.5 + k * 2.1) * s, z); mapGroup.add(c); }
       placed++;
     }
@@ -858,7 +923,7 @@
 
   function buildTilted() {
     const floors = [];
-    tiltedMats(); batches = new Map();
+    tiltedMats(); batches = new Map(); srand(20180124);
     // suelo: pavimento de piedra
     const gp = new T.PlaneGeometry(600, 600); const uv = gp.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 150, uv.getY(i) * 150);
     const ground = new T.Mesh(gp, TM.paving); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; mapGroup.add(ground); floors.push(ground);
