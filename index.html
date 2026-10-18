@@ -213,7 +213,7 @@
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -165, right: 165, top: 165, bottom: -165, near: 1, far: 560 });
   sun.shadow.camera.updateProjectionMatrix();
-  sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05;
+  sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.12; // sin rayas (acné) en caras finas
   const hemi = scene.children.find(o => o.isHemisphereLight);
   const ambient = new T.AmbientLight(0xfff4e0, 0); scene.add(ambient);
 
@@ -547,15 +547,38 @@
     }
     const roof = cmesh(new T.ConeGeometry(5, 3.4, 4), 0x9a4b3a); roof.position.set(x, h + 4.9, z); roof.rotation.y = Math.PI / 4; mapGroup.add(roof);
   }
-  function car(x, z, ang, color) {
-    const g = new T.Group();
-    g.add(cmesh(new T.BoxGeometry(2, 1, 4.2), color)).position.y = 0.8;
-    const cab = cmesh(new T.BoxGeometry(1.8, 0.8, 2.2), 0x20242b); cab.position.set(0, 1.45, -0.1); g.add(cab);
-    for (const sx of [-1, 1]) for (const sz of [-1.3, 1.3]) { const w = cmesh(new T.CylinderGeometry(0.45, 0.45, 0.3, 10), 0x15171b); w.rotation.z = Math.PI / 2; w.position.set(sx, 0.45, sz); g.add(w); }
-    g.position.set(x, 0, z); g.rotation.y = ang; mapGroup.add(g);
-    const col = new T.Mesh(new T.BoxGeometry(2.2, 1.6, 4.4), new T.MeshBasicMaterial({ visible: false }));
-    col.position.set(x, 0.8, z); mapGroup.add(col); solids.push(col);
+  // Coche de decoración: camioneta angular de acero (estilo pickup futurista), en varios colores
+  let truckGeo = null;
+  function truckGeos() {
+    if (truckGeo) return truckGeo;
+    const prof = (pts, w) => { const sh = new T.Shape(); sh.moveTo(pts[0][0], pts[0][1]); for (const q of pts.slice(1)) sh.lineTo(q[0], q[1]); sh.closePath();
+      const g = new T.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false }); g.translate(0, 0, -w / 2); g.rotateY(-Math.PI / 2); g.computeVertexNormals(); return g; };
+    truckGeo = {
+      body: prof([[2.85, 0.5], [2.9, 1.2], [-0.3, 2.05], [-2.8, 1.5], [-2.8, 0.5]], 2.3),                 // carrocería en cuña
+      glass: prof([[1.75, 1.42], [-0.3, 2.07], [-1.75, 1.75], [-1.75, 1.42]], 2.34),                          // lunas oscuras
+      skirt: prof([[2.95, 0.3], [2.95, 0.62], [-2.9, 0.62], [-2.9, 0.3]], 2.2)                                 // faldón gris
+    };
+    return truckGeo;
   }
+  function car(x, z, ang, color) {
+    const G = truckGeos(), g = new T.Group();
+    const paint = new T.MeshLambertMaterial({ color }), dark = new T.MeshLambertMaterial({ color: 0x1b1e23 });
+    const add = (geo, mat) => { const m = new T.Mesh(geo, mat); m.castShadow = true; g.add(m); return m; };
+    add(G.body, paint); add(G.glass, dark); add(G.skirt, new T.MeshLambertMaterial({ color: 0x3a3d42 }));
+    const bar = (z0, col) => { const m = new T.Mesh(new T.BoxGeometry(2.2, 0.07, 0.06), new T.MeshBasicMaterial({ color: col })); m.position.set(0, 1.16, z0); g.add(m); };
+    bar(2.91, 0xffffff); bar(-2.82, 0xff3030);                                                             // barra de luz delante / detrás
+    const lamp = new T.Mesh(new T.BoxGeometry(0.4, 0.06, 0.05), new T.MeshBasicMaterial({ color: 0xe8f4ff }));
+    for (const sx of [-0.85, 0.85]) { const l = lamp.clone(); l.position.set(sx, 0.7, 2.97); g.add(l); }
+    for (const sx of [-1, 1]) for (const sz of [-1.85, 1.9]) {
+      const arch = new T.Mesh(new T.BoxGeometry(0.12, 0.55, 1.6), dark); arch.position.set(sx * 1.17, 1.0, sz); g.add(arch);   // paso de rueda
+      const w = new T.Mesh(new T.CylinderGeometry(0.58, 0.58, 0.42, 12), new T.MeshLambertMaterial({ color: 0x16181c })); w.rotation.z = Math.PI / 2; w.position.set(sx * 1.0, 0.58, sz); g.add(w);
+      const hub = new T.Mesh(new T.CylinderGeometry(0.36, 0.36, 0.44, 8), new T.MeshLambertMaterial({ color: 0x3b3f46 })); hub.rotation.z = Math.PI / 2; hub.position.copy(w.position); g.add(hub);
+    }
+    g.position.set(x, 0, z); g.rotation.y = ang; mapGroup.add(g);
+    const c = Math.abs(Math.cos(ang)), sn = Math.abs(Math.sin(ang));                                        // colisión alineada con el giro
+    solids.push(collider(x, 1.0, z, 2.4 * c + 5.9 * sn, 2.0, 2.4 * sn + 5.9 * c));
+  }
+
 
   // ===================== PISOS PICADOS (Tilted Towers) calcado del modelo Sketchfab =====================
   // Medidas reales tomadas del modelo (unidades de modelo, x=este, y=norte). 1 planta = 0.52 u.
@@ -726,24 +749,40 @@
     const band = o.band || o.mat, W = x1 - x0, D = z1 - z0;
     const sill = 1.05, head = Math.min(fh - 0.75, 3.3 + (fh - FH) * 0.6);
     const matNS = o.matNS || o.mat, matEW = o.matEW || o.mat;
+    const canStairs = o.stairs !== false && W >= 6.6 && D >= 7.2;
+    const RUN = Math.min(6.4 * fh / FH, D - 2 * t - 2.4), wellW = 3.0;
+    const zs = z0 + t + 1.2, ze = zs + RUN;
+    const wells = [[x0 + t, x0 + t + wellW], [x1 - t - wellW, x1 - t]];
     // ¿este tramo de pared coincide con el borde/interior de un bloque construido antes? (ya hay pared o paso ahí)
     const prev = flatZones.slice();
-    function shared(ax, fixed, c) {
-      for (const [a0, a1, b0, b1] of prev) {
-        if (ax === 'x') { if (fixed >= b0 - 0.5 && fixed <= b1 + 0.5 && c > a0 + 0.2 && c < a1 - 0.2) return true; }
-        else if (fixed >= a0 - 0.5 && fixed <= a1 + 0.5 && c > b0 + 0.2 && c < b1 - 0.2) return true;
+    function shared(ax, fixed, s0, s1, yb) {
+      for (const [a0, a1, b0, b1, top] of prev) {
+        if (yb >= top - 0.5) continue; // el vecino es más bajo: aquí arriba la pared es nuestra
+        // devuelve el trozo [lo, hi] del tramo que ya cubre el vecino (o null)
+        const [p0, p1, onLine] = ax === 'x' ? [a0, a1, fixed >= b0 - 0.5 && fixed <= b1 + 0.5] : [b0, b1, fixed >= a0 - 0.5 && fixed <= a1 + 0.5];
+        if (onLine && p1 + t / 2 > s0 + 0.05 && p0 - t / 2 < s1 - 0.05) return [Math.max(s0, p0 - t / 2), Math.min(s1, p1 + t / 2)]; // hasta la cara exterior del muro vecino
       }
-      return false;
+      return null;
     }
     function side(ax, fixed, a0, a1, yb, isDoor, mat0, ground, sideName) {
       if ((o.skip || '').includes(sideName)) return;
       const openAll = (o.openSides || '').includes(sideName);
       const arch = ground && o.arch, winW = arch ? 3.2 : (o.winW || 2.0);
-      const len = a1 - a0, n = Math.max(1, Math.floor((len - 1.0) / (arch ? 4.4 : (o.winStep || 3.2)))), step = len / n, dIdx = isDoor ? Math.floor(n / 2) : -1;
+      const len = a1 - a0, n = Math.max(1, Math.floor((len - 1.0) / (arch ? 4.4 : (o.winStep || 3.2)))), step = len / n;
+      // la puerta va en el tramo más central que no dé contra la escalera de la planta baja
+      let dIdx = -1;
+      if (isDoor) { let bd = 1e9; const hw0 = (arch ? 3.2 : (o.winW || 2.0)) / 2 + 0.4;
+        for (let i = 0; i < n; i++) { const c = a0 + step * (i + 0.5);
+          const hits = canStairs && ((ax === 'z' && sideName === 'W' && c + hw0 > zs - 1.2 && c - hw0 < ze + 0.6) || (ax === 'x' && sideName === 'S' && ze > z1 - t - 2.5 && c + hw0 > wells[0][0] && c - hw0 < wells[0][1]));
+          const d = Math.abs(i - (n - 1) / 2) + (hits ? 100 : 0); if (d < bd) { bd = d; dIdx = i; } } }
       const P = (p0, p1, y0, y1, m) => ax === 'x' ? tbox(p0, y0, fixed - t / 2, p1, y1, fixed + t / 2, m) : tbox(fixed - t / 2, y0, p0, fixed + t / 2, y1, p1, m);
       for (let i = 0; i < n; i++) {
         const c = a0 + step * (i + 0.5), w0 = c - winW / 2, w1 = c + winW / 2, s0 = a0 + step * i, s1 = a0 + step * (i + 1);
-        if (shared(ax, fixed, c)) continue;
+        const sh = shared(ax, fixed, s0, s1, yb);
+        if (sh) { // el vecino ya pone pared aquí: solo rellenamos lo que asome, liso y sin ventana (sin rendijas ni paredes dobles)
+          if (sh[0] > s0 + 0.05) P(s0, sh[0], yb, yb + fh, mat0);
+          if (sh[1] < s1 - 0.05) P(sh[1], s1, yb, yb + fh, mat0);
+          continue; }
         const mat = o.matAt ? o.matAt(sideName, c, mat0) : mat0;
         P(s0, w0, yb, yb + fh, mat); P(w1, s1, yb, yb + fh, mat);
         const sp = o.openSpan && [Math.min(o.openSpan[0], o.openSpan[1]), Math.max(o.openSpan[0], o.openSpan[1])];
@@ -776,10 +815,6 @@
       tbox(x0 - 0.12, y0, z0, x0 + e - 0.12, y1, z1, band, false); tbox(x1 - e + 0.12, y0, z0, x1 + 0.12, y1, z1, band, false); }
     tbox(x0 + t / 2, 0, z0 + t / 2, x1 - t / 2, 0.04, z1 - t / 2, M.wood, false);
     // escaleras y forjados
-    const canStairs = o.stairs !== false && W >= 6.6 && D >= 7.2;
-    const RUN = Math.min(6.4 * fh / FH, D - 2 * t - 2.4), wellW = 3.0;
-    const zs = z0 + t + 1.2, ze = zs + RUN;
-    const wells = [[x0 + t, x0 + t + wellW], [x1 - t - wellW, x1 - t]];
     for (let j = 1; j <= floors; j++) {
       const y = j * fh, top = j === floors, sm = top ? M.roof : M.wood;
       if (canStairs && (!top || o.roofAccess !== false)) {
@@ -802,7 +837,7 @@
       const ax0 = x0 + 3 + ((k * 7.3) % Math.max(1, W - 7)), az0 = z1 - 4.5 - ((k * 3.1) % Math.max(1, D - 8));
       tbox(ax0, ry, az0, ax0 + 2.2, ry + 1.3, az0 + 1.6, M.trim); tbox(ax0 + 0.3, ry + 1.3, az0 + 0.3, ax0 + 1.9, ry + 1.45, az0 + 1.3, M.dark, false);
     }
-    flatZones.push([Math.min(x0, x1), Math.max(x0, x1), Math.min(z0, z1), Math.max(z0, z1)]);
+    flatZones.push([Math.min(x0, x1), Math.max(x0, x1), Math.min(z0, z1), Math.max(z0, z1), floors * fh]);
     if (o.furnish === true) furnishBlock(o, x0, z0, x1, z1, floors, fh, t, canStairs, wells, zs, ze);
     return ry;
   }
@@ -813,11 +848,13 @@
       light: { mat: TM.stoneL, band: TM.stoneL } }[style];
     tblock(Object.assign({ x0: tx(mx0), x1: tx(mx1), z0: tz(my1), z1: tz(my0), floors, doors }, S, extra || {}));
   }
-  function tTree(x, z, s) {
-    s = s || 1;
-    tbox(x - 0.35 * s, 0, z - 0.35 * s, x + 0.35 * s, 3 * s, z + 0.35 * s, TM.trunk);
+  const treeQueue = [];
+  function tTree(x, z, s) { treeQueue.push([x, z, s]); }
+  function tTreeNow(x, z, s, y) {
+    s = s || 1; y = y || 0;
+    tbox(x - 0.35 * s, y - 0.5, z - 0.35 * s, x + 0.35 * s, y + 3 * s, z + 0.35 * s, TM.trunk);
     for (const [ox, oy, oz, r] of [[0, 4.2, 0, 2.2], [1.2, 3.6, 0.5, 1.6], [-1.1, 3.7, -0.4, 1.7], [0.2, 5.4, -0.2, 1.5]]) {
-      const m = new T.Mesh(new T.IcosahedronGeometry(r * s, 1), TM.leaf); m.castShadow = true; m.position.set(x + ox * s, oy * s, z + oz * s); mapGroup.add(m);
+      const m = new T.Mesh(new T.IcosahedronGeometry(r * s, 1), TM.leaf); m.castShadow = true; m.position.set(x + ox * s, y + oy * s, z + oz * s); mapGroup.add(m);
     }
   }
   function tBus(x, z, alongX) {
@@ -885,8 +922,14 @@
     const lan = new T.Mesh(new T.CylinderGeometry(0.6, 0.8, 1.2, 8), M.sand); lan.position.set(cx, ry + 0.9 + R * 0.42 + 0.5, cz); mapGroup.add(lan);
     // ala este (1 planta) con terraza en la azotea
     const ex0 = x1, ex1 = tx(3.0);
-    const ey = tblock({ x0: ex0, x1: ex1, z0, z1, floors: 1, fh, mat: M.sand, band: M.sand, doors: 'E', arch: true, parapetH: 1.0, parapet: M.dark, ac: 0, stairs: false });
+    const ey = tblock({ x0: ex0, x1: ex1, z0, z1, floors: 1, fh, mat: M.sand, band: M.sand, doors: 'E', arch: true, parapetH: 0, ac: 0, stairs: false });
     tramp(ex1 + 1.6, z1 - 1, ex1 + 1.6, z1 - 9, 0, ey, 2.4, M.trim); // escalera exterior a la terraza
+    // descansillo al final de la escalera y antepecho de la terraza con hueco para entrar
+    tbox(ex1 - 0.3, ey - 0.3, z1 - 11.4, ex1 + 2.8, ey, z1 - 9, M.trim);
+    const ph = ey + 1.0, pz0 = z1 - 11.4, pz1 = z1 - 9;
+    tbox(ex0, ey, z0 - 0.15, ex1 + 0.15, ph, z0 + 0.3, M.dark); tbox(ex0, ey, z1 - 0.3, ex1 + 0.15, ph, z1 + 0.15, M.dark);   // N y S
+    tbox(ex1 - 0.3, ey, z0 + 0.3, ex1 + 0.15, ph, pz0, M.dark); tbox(ex1 - 0.3, ey, pz1, ex1 + 0.15, ph, z1 - 0.3, M.dark);   // E con hueco
+    tbox(ex1 + 2.8, ey, pz0, ex1 + 3.1, ph, pz1, M.dark); tbox(ex1 - 0.3, ey, pz0 - 0.3, ex1 + 3.1, ph, pz0, M.dark);        // barandilla del descansillo
     for (let i = 0; i < 3; i++) {
       const ux = (ex0 + ex1) / 2, uz = z0 + 3 + i * ((z1 - z0 - 6) / 2);
       tbox(ux - 0.08, ey, uz - 0.08, ux + 0.08, ey + 2.4, uz + 0.08, M.dark, false);
@@ -903,13 +946,13 @@
     const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.brick, band: M.white, doors: 'W', parapet: M.white, parapetH: 1.0, frame: M.white, ac: 1,
       matAt: (sn, c, m) => (sn === 'W' && Math.abs(c - cz) < w / 2) ? M.blue : m });
     for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) { const c = new T.Mesh(new T.CylinderGeometry(0.8, 0.8, 1.1, 12), M.white); c.position.set(px, ry + 0.55, pz); mapGroup.add(c); }
-    for (const sz of [-1, 1]) tbox(x0 - 3, 0, cz + sz * 5 - 2, x0 - 1.5, 0.9, cz + sz * 5 + 2, M.hedge); // setos
+    tbox(x0 - 3, 0, cz - 7, x0 - 1.5, 0.9, cz - 3, M.hedge); // seto (solo al sur: al norte queda la puerta)
   }
   // ---- Terreno del valle (malla con alturas): colinas/acantilados medidos del modelo ----
   const HILLS = [ // [x0,x1,y0,y1, altura] en unidades de modelo
     [-11, -1.3, 2.6, 9.9, 3.0], [-14.5, -7.9, -4.5, 2.6, 2.0], [-14.5, -12.4, -17, -4.5, 1.5], [-14.5, -7, -21, -16.3, 1.4],
     [-7, 4, -21, -18, 1.0], [3.8, 5.5, -21, -15.5, 1.1], [5.5, 8, -21, -8.5, 1.7], [8, 14.5, -21, -8.5, 3.0],
-    [10.5, 14.5, -8.5, 7, 2.6], [8, 14.5, 7, 10.5, 2.2], [-1.3, 8, 8.3, 10.5, 2.0]
+    [10.5, 14.5, -8.5, 7, 2.6], [8, 14.5, 7, 10.5, 2.2], [-1.3, 8, 8.3, 10.5, 2.0], [-14.5, -10.8, 2.4, 10.5, 2.6] // esquina NO cerrada (antes quedaba un pasillo)
   ];
   let terrainFn = null, cityBounds = null; const flatZones = [];
   function terrainH(x, z) { return terrainFn ? terrainFn(x, z) : 0; }
@@ -923,21 +966,40 @@
       for (const [x0, x1, y0, y1, H] of HILLS) {
         const din = Math.min(mx - x0, x1 - mx, my - y0, y1 - my); // >0 dentro
         const wob = (vnoise(mx * 1.3, my * 1.3) - 0.5) * 0.7;      // bordes irregulares
-        const k = Math.max(0, Math.min(1, (din + wob) / 0.55));
+        const k = Math.max(0, Math.min(1, (din + 0.35 + wob) / 0.55));
         if (k > 0) h = Math.max(h, H * TS * (k * k * (3 - 2 * k)) * (0.85 + 0.3 * vnoise(mx * 0.7 + 9, my * 0.7)));
       }
       // fuera del recinto: todo montaña
       const ex = Math.max(Math.abs(mx) - 14, my - 10.3, -20.5 - my);
       if (ex > 0) h = Math.max(h, Math.min(1, ex / 0.8) * 4 * TS);
       if (h > 0.05) for (const [a0, a1, b0, b1] of flatZones) {
-        const d = Math.max(a0 - x, x - a1, b0 - z, z - b1, 0) - 2.5;
-        if (d < 6) { const k = Math.max(0, d) / 6; h *= k * k * (3 - 2 * k); }
+        const d = Math.max(a0 - x, x - a1, b0 - z, z - b1, 0) - 0.35;
+        if (d < 1.2) { const k = Math.max(0, d) / 1.2; h *= k * k * (3 - 2 * k); } // el acantilado toca la pared: sin rendija detrás
       }
       return h > 0.05 ? h : -0.08;
     };
   }
+  // rellena pasillos y bolsas estrechas que quedan encajonados entre dos laderas (no deben existir)
+  function fillTrenches(base) {
+    const C = 2, x0 = -140, z0 = -150, NX = 141, NZ = 151, g = new Float32Array(NX * NZ);
+    for (let i = 0; i < NX; i++) for (let k = 0; k < NZ; k++) g[i * NZ + k] = base(x0 + i * C, z0 + k * C);
+    const f = g.slice(), at = (i, k) => (i < 0 || k < 0 || i >= NX || k >= NZ) ? 99 : g[i * NZ + k];
+    const inBuilding = (x, z) => flatZones.some(([a0, a1, b0, b1]) => x > a0 - 2 && x < a1 + 2 && z > b0 - 2 && z < b1 + 2);
+    for (let i = 0; i < NX; i++) for (let k = 0; k < NZ; k++) {
+      if (g[i * NZ + k] > 3) continue; const x = x0 + i * C, z = z0 + k * C; if (inBuilding(x, z)) continue;
+      let best = 0;
+      for (const [di, dk] of [[1, 0], [0, 1]]) { let ha = 0, hb = 0;
+        for (let s = 1; s <= 10; s++) { if (!ha && at(i + di * s, k + dk * s) > 4) ha = at(i + di * s, k + dk * s); if (!hb && at(i - di * s, k - dk * s) > 4) hb = at(i - di * s, k - dk * s); }
+        if (ha && hb) best = Math.max(best, Math.min(ha, hb)); }
+      if (best) f[i * NZ + k] = best;
+    }
+    return (x, z) => { const b = base(x, z), fi = (x - x0) / C, fk = (z - z0) / C, i = Math.floor(fi), k = Math.floor(fk);
+      if (i < 0 || k < 0 || i >= NX - 1 || k >= NZ - 1) return b;
+      const u = fi - i, v = fk - k, q = (a, c) => f[a * NZ + c];
+      return Math.max(b, (q(i, k) * (1 - u) + q(i + 1, k) * u) * (1 - v) + (q(i, k + 1) * (1 - u) + q(i + 1, k + 1) * u) * v); };
+  }
   function buildTerrain(floors) {
-    terrainFn = makeTerrainFn();
+    terrainFn = fillTrenches(makeTerrainFn());
     const size = 340, seg = 190, g = new T.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
     const pos = g.attributes.position, col = new Float32Array(pos.count * 3), n1 = seg + 1, cell = size / seg;
     for (let i = 0; i < pos.count; i++) pos.setY(i, terrainFn(pos.getX(i), pos.getZ(i)));
@@ -1056,13 +1118,17 @@
     tTree(tx(-5.3), tz(-6.6), 1.0); tTree(tx(4.0), tz(4.6), 1.0); tTree(tx(9.8), tz(-3.6), 0.9); tTree(tx(11.0), tz(-5.5), 1.1);
     // autobuses y coches como en el original
     tBus(tx(-4.4), tz(1.4), true); tBus(tx(-2.0), tz(1.2), true); tBus(tx(-6.1), tz(-9.6), false); tBus(tx(3.7), tz(-5.5), false);
-    batchesDone();
-    car(tx(-1.0), tz(0.4), Math.PI / 2, 0x3b6fd0); car(tx(6.0), tz(0.7), Math.PI / 2, 0xd0d0d0); car(tx(1.5), tz(-9.8), Math.PI / 2, 0xc33b4b);
-    car(tx(-7.0), tz(-14.0), 0, 0xe0b23a); car(tx(4.5), tz(-8.5), 0, 0x2fa35a); car(tx(-1.6), tz(-15.2), 0, 0x9d4bc2);
+    car(tx(-1.0), tz(0.4), Math.PI / 2, 0xb9bec4); car(tx(6.0), tz(0.7), Math.PI / 2, 0x3b6fd0); car(tx(1.5), tz(-9.8), Math.PI / 2, 0xc33b4b);
+    car(tx(-7.0), tz(-14.0), 0, 0xf08a24); car(tx(4.5), tz(-8.5), 0, 0x2fa35a); car(tx(-1.6), tz(-15.2), 0, 0x9d4bc2);
     for (const [x, z] of lampQueue) if (!flatZones.some(([a0, a1, b0, b1]) => x > a0 - 1.2 && x < a1 + 1.2 && z > b0 - 1.2 && z < b1 + 1.2)) tLampNow(x, z);
     lampQueue.length = 0;
     // colinas y acantilados que rodean el valle (después de los edificios: se aplana bajo ellos)
     buildTerrain(floors);
+    for (const [x, z, sc] of treeQueue) { const h = terrainH(x, z);
+      if (h > 1.2 || flatZones.some(([a0, a1, b0, b1]) => x > a0 - 1 && x < a1 + 1 && z > b0 - 1 && z < b1 + 1)) continue; // nada de árboles dentro de rocas o casas
+      tTreeNow(x, z, sc, Math.max(0, h)); }
+    treeQueue.length = 0;
+    batchesDone(); // ahora sí: farolas y árboles ya están dentro de la geometría visible
     // límites invisibles
     { const bx0 = tx(-13.6), bx1 = tx(13.6), bz0 = tz(9.9), bz1 = tz(-20.1); cityBounds = [bx0, bx1, bz0, bz1];
       for (const [x0, z0, x1, z1] of [[bx0 - 4, bz0 - 4, bx1 + 4, bz0], [bx0 - 4, bz1, bx1 + 4, bz1 + 4], [bx0 - 4, bz0, bx0, bz1], [bx1, bz0, bx1 + 4, bz1]])
@@ -1120,7 +1186,7 @@
     for (let t = -40; t <= 40; t += 6) { deco(0, 0.03, t, 0.3, 0.06, 2.6, 0xd9c23a); deco(t, 0.03, 0, 2.6, 0.06, 0.3, 0xd9c23a); }
     // coches de cobertura
     car(0, 14, 0, 0xcf4b3a); car(0, -20, 0, 0x3a6fcf); car(16, 0, Math.PI / 2, 0xdedede);
-    car(-22, 0, Math.PI / 2, 0x2fa35a); car(0, 32, 0, 0xe0b23a); car(-3, -3, 0.6, 0xc24b8a);
+    car(-22, 0, Math.PI / 2, 0xb9bec4); car(0, 32, 0, 0xe0b23a); car(-3, -3, 0.6, 0xc24b8a);
     spawnPoint.set(0, 0, 18);
     return floors;
   }
@@ -1481,7 +1547,7 @@
     // anti-atravesar: una pared nunca puede empujarte más allá de lo que te has movido este frame
     if (Math.hypot(player.pos.x - ox, player.pos.z - oz) > Math.hypot(move.x, move.z) * dt + 0.9) { player.pos.x = ox; player.pos.z = oz; }
     // pendiente del terreno demasiado empinada = pared
-    if (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + STEP + 0.4) { player.pos.x = ox; player.pos.z = oz; }
+    if (terrainFn && terrainH(player.pos.x, player.pos.z) > 0.8 && terrainH(player.pos.x, player.pos.z) > terrainH(ox, oz) - 0.01) { player.pos.x = ox; player.pos.z = oz; } // la montaña es pared: no se sube
     if (cityBounds) { player.pos.x = Math.max(cityBounds[0] + 1, Math.min(cityBounds[1] - 1, player.pos.x)); player.pos.z = Math.max(cityBounds[2] + 1, Math.min(cityBounds[3] - 1, player.pos.z)); }
     else { const B = ARENA - 1; player.pos.x = Math.max(-B, Math.min(B, player.pos.x)); player.pos.z = Math.max(-B, Math.min(B, player.pos.z)); }
     // nunca quedarse metido dentro de la ladera
@@ -1944,7 +2010,7 @@
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
     match.limitSec = +(Q.get('secs') || 60); R.rounds = [];
-    window.__botDbg = { solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
+    window.__botDbg = { terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
     const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
     const issue = (kind, pos, extra) => {
       const key = kind + '@' + Math.round(pos.x / 4) * 4 + ',' + Math.round(pos.y) + ',' + Math.round(pos.z / 4) * 4;
