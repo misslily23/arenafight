@@ -303,6 +303,7 @@
     g.traverse(o => { if (o.name && o.name.indexOf('limb_') === 0) g.userData.limbs.push({ p: o, leg: o.name.indexOf('leg') > 0, side: o.name.slice(-1) === 'R' ? 1 : -1 }); });
     return g;
   }
+  const CHAR_H = 2.4; // altura común de todos los personajes
   function buildCharacter(type) {
     if (glbChar[type]) return cloneGlbChar(type);
     const g = new T.Group(); g.userData.headMeshes = [];
@@ -385,7 +386,10 @@
       addLimb(g, 0.28, 0.5, 0, 0.15, 1.1, skin);
     }
     const body = new T.Group(); while (g.children.length) body.add(g.children[0]); g.add(body); g.userData.body = body;
-    g.scale.setScalar(0.8); // personajes un poco más pequeños
+    // todos los personajes con la misma altura (la de los modelos .glb)
+    g.updateMatrixWorld(true); const bx = new T.Box3().setFromObject(g), hgt = (bx.max.y - bx.min.y) || 1;
+    g.scale.setScalar(CHAR_H / hgt);
+    g.userData.baseY = -bx.min.y; body.position.y = g.userData.baseY; // pies justo en el suelo
     return g;
   }
   const CHARS = [
@@ -1862,7 +1866,7 @@
       const ph = L.side > 0 ? s : -s;                       // piernas y brazos alternos
       L.p.rotation.x = (L.leg ? ph * 0.75 : -ph * 0.55) * amt;
     }
-    body.position.y = Math.abs(Math.cos(ud._ph)) * (glb ? 0.16 : 0.1) * amt;   // rebote a cada paso
+    body.position.y = (ud.baseY || 0) + Math.abs(Math.cos(ud._ph)) * (glb ? 0.16 : 0.1) * amt;   // rebote a cada paso
     body.rotation.z = s * (glb ? 0.12 : 0.05) * amt;                           // contoneo
     body.rotation.x = (glb ? 0.08 : 0.04) * amt;                               // se inclina un poco hacia delante
   }
@@ -1945,7 +1949,7 @@
         raw.rotation.x = -Math.PI / 2; // el modelo viene Z-up -> lo ponemos de pie (Y-up)
         raw.updateMatrixWorld(true);
         let box = new T.Box3().setFromObject(raw); const size = box.getSize(new T.Vector3());
-        raw.scale.setScalar(2.4 / (size.y || 1)); // misma altura que los procedurales escalados
+        raw.scale.setScalar(CHAR_H / (size.y || 1)); // misma altura para todos
         raw.updateMatrixWorld(true);
         box = new T.Box3().setFromObject(raw); const c = box.getCenter(new T.Vector3());
         raw.position.x -= c.x; raw.position.z -= c.z; raw.position.y -= box.min.y;
