@@ -346,6 +346,36 @@
       });
       const tail = cmesh(new T.TorusGeometry(0.3, 0.14, 10, 18, Math.PI * 1.6), tan); tail.position.set(0, 1.05, -0.62); tail.rotation.set(0, Math.PI / 2, 0.4); g.add(tail);
       const tailTip = cmesh(new T.SphereGeometry(0.15, 10, 10), cream); tailTip.position.set(0, 1.3, -0.4); g.add(tailTip);
+    } else if (type === 'pepe') {
+      // Pepe: cabeza verde grande, ojos saltones con párpados tristes, labios gruesos rojizos; camiseta azul, vaqueros y sandalias
+      const grn = 0x5f8d3c, grnD = 0x4c7630, lip = 0xb4523c, shirt = 0x1f4fc4, jeans = 0x7590ad, sand = 0x6b4a2e;
+      const H = m => { g.add(m); g.userData.headMeshes.push(m); return m; };
+      const torso = cmesh(new T.CylinderGeometry(0.5, 0.56, 1.3, 14), shirt); torso.position.y = 1.5; g.add(torso);
+      const hem = cmesh(new T.CylinderGeometry(0.58, 0.58, 0.18, 14), shirt); hem.position.y = 0.92; g.add(hem);
+      const neck = cmesh(new T.CylinderGeometry(0.24, 0.28, 0.3, 12), grn); neck.position.y = 2.25; g.add(neck);
+      const head = H(cmesh(new T.SphereGeometry(0.85, 24, 20), grn)); head.position.set(0, 2.85, 0.05); head.scale.set(1.18, 0.9, 1.05);
+      const snout = H(cmesh(new T.SphereGeometry(0.62, 20, 16), grn)); snout.position.set(0, 2.7, 0.5); snout.scale.set(1.25, 0.72, 0.9);
+      // labios: superior e inferior, anchos y caídos (cara triste)
+      const lipU = H(cmesh(new T.SphereGeometry(0.5, 18, 12), lip)); lipU.position.set(0, 2.6, 0.92); lipU.scale.set(1.35, 0.17, 0.42);
+      const lipL = H(cmesh(new T.SphereGeometry(0.46, 18, 12), lip)); lipL.position.set(0, 2.5, 0.88); lipL.scale.set(1.28, 0.16, 0.4);
+      [-1, 1].forEach(k => { const c = H(cmesh(new T.SphereGeometry(0.12, 10, 8), lip)); c.position.set(k * 0.62, 2.5, 0.7); c.scale.set(0.8, 0.9, 0.8); }); // comisuras hacia abajo
+      [-0.36, 0.36].forEach(sx => {
+        const bulge = H(cmesh(new T.SphereGeometry(0.36, 18, 14), grn)); bulge.position.set(sx, 3.22, 0.42);              // cuenca saltona
+        const eye = H(cmesh(new T.SphereGeometry(0.29, 18, 14), 0xffffff)); eye.position.set(sx, 3.18, 0.6); eye.scale.set(1.05, 0.95, 0.75);
+        const pup = H(cmesh(new T.SphereGeometry(0.14, 12, 10), 0x111111)); pup.position.set(sx * 0.92, 3.12, 0.8); pup.scale.set(1, 1.1, 0.6);
+        const gl = H(cmesh(new T.SphereGeometry(0.045, 8, 6), 0xffffff)); gl.position.set(sx * 0.92 + 0.05, 3.17, 0.87);
+        const lid = H(cmesh(new T.SphereGeometry(0.31, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), grnD)); lid.position.set(sx, 3.2, 0.6); lid.scale.set(1.08, 0.8, 0.85);
+        lid.rotation.set(0.5, 0, sx > 0 ? -0.35 : 0.35);                                                                   // párpado caído y triste
+      });
+      // mangas cortas y brazos verdes
+      [-0.6, 0.6].forEach(sx => { const sl = cmesh(new T.CylinderGeometry(0.2, 0.22, 0.4, 10), shirt); sl.position.set(sx, 1.95, 0); sl.rotation.z = sx > 0 ? -0.3 : 0.3; g.add(sl);
+        const a = addLimb(g, sx * 1.1, 1.45, 0, 0.13, 1.25, grn); a.rotation.z = sx > 0 ? 0.1 : -0.1;
+        const hnd = cmesh(new T.SphereGeometry(0.17, 10, 8), grn); hnd.position.set(0, -1.28, 0); hnd.scale.set(1, 1.1, 1.2); a.add(hnd); });
+      // vaqueros, pies verdes y sandalias marrones
+      [-0.26, 0.26].forEach(sx => { const l = addLimb(g, sx, 0.4, 0, 0.19, 0.95, jeans);
+        const ft = cmesh(new T.SphereGeometry(0.2, 10, 8), grn); ft.position.set(0, -0.86, 0.14); ft.scale.set(1.1, 0.55, 1.6); l.add(ft);
+        const sole = cmesh(new T.BoxGeometry(0.42, 0.07, 0.68), sand); sole.position.set(0, -0.95, 0.14); l.add(sole);
+        for (const zz of [0.0, 0.28]) { const st = cmesh(new T.BoxGeometry(0.44, 0.08, 0.1), sand); st.position.set(0, -0.84, zz); l.add(st); } });
     } else if (type === 'troll') {
       const blk = 0x171717, wh = 0xf6f4ef;
       const torso = cmesh(new T.CylinderGeometry(0.36, 0.46, 1.5, 12), blk); torso.position.y = 1.35; g.add(torso);
@@ -398,6 +428,7 @@
     { id: 'troll', emoji: '😈', name: 'Troll', desc: 'Problem?' },
     { id: 'wojak', emoji: '😐', name: 'Wojak', desc: 'I know that feel' },
     { id: 'chad', emoji: '😎', name: 'Alon', desc: 'Cap and shades' },
+    { id: 'pepe', emoji: '🐸', name: 'Pepe', desc: 'Feels bad man' },
   ];
   let selectedChar = 'stick';
   let selectedMap = 'desert';
@@ -1496,7 +1527,7 @@
   }
   // cilindro entre dos puntos (para los brazos del arma en primera persona)
   // [parte de arriba del brazo, antebrazo/mano] de cada personaje (sacado de sus modelos)
-  const ARM_STYLE = { stick: [0xb8672d, 0xd68844], doge: [0xd99a4e, 0xf6e8cc], troll: [0x171717, 0x222222], wojak: [0xeee6da, 0xeee6da], chad: [0xd5b8a4, 0xd5b8a4] };
+  const ARM_STYLE = { stick: [0xb8672d, 0xd68844], doge: [0xd99a4e, 0xf6e8cc], troll: [0x171717, 0x222222], wojak: [0xeee6da, 0xeee6da], chad: [0xd5b8a4, 0xd5b8a4], pepe: [0x4c7630, 0x5f8d3c] };
   function limbBetween(a, b, r, color) {
     const d = b.clone().sub(a), m = cmesh(new T.CylinderGeometry(r, r * 1.1, d.length(), 8), color);
     m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); return m;
@@ -1920,6 +1951,7 @@
   const pCam = new T.PerspectiveCamera(42, 230 / 270, 0.1, 100); pCam.position.set(0, 2.0, 7.2); pCam.lookAt(0, 1.7, 0);
   let pChar = null;
   function setPreview(type) { if (pChar) pScene.remove(pChar); pChar = buildCharacter(type); pScene.add(pChar); }
+  window.__pv = () => pChar;
 
   // ---------- Animación de andar ----------
   function animateChar(g, dt, forceSp) {
@@ -2056,7 +2088,7 @@
   const match = { limitKills: 15, limitSec: 240 };
   let matchStart = 0, matchEnded = false, matchTimeLeft = match.limitSec, boardList = [], boardSendT = 0;
   const board = {}; // host/offline: id -> {name, ch, kills}
-  const CHAR_EMOJI = { stick: '🪵', doge: '🐕', troll: '😈', wojak: '😐', chad: '😎' };
+  const CHAR_EMOJI = { stick: '🪵', doge: '🐕', troll: '😈', wojak: '😐', chad: '😎', pepe: '🐸' };
   function esc(s) { return (s || '').replace(/[<>&]/g, ''); }
   function registerKill(byId) {
     if (byId == null) return;
