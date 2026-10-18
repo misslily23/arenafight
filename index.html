@@ -1163,7 +1163,7 @@
     requestAnimationFrame(() => { f.style.transition = 'opacity .4s'; f.style.opacity = '0'; });
   }
   function damagePlayer(d) {
-    if (player.dead || player.protect > 0) return; // protección al aparecer
+    if (player.dead || player.protect > 0 || matchEnded) return; // protección al aparecer / partida terminada
     player.hp -= d; flashDamage(); updateHealth();
     if (player.hp <= 0) {
       player.hp = 0; player.dead = true; player.respawn = 2.0; deaths++; updateHealth();
@@ -1347,7 +1347,7 @@
     reloading = true; reloadEnd = performance.now() + w.reload * 1000; updateAmmo();
   }
   function fire() {
-    if (reloading || player.dead) return;
+    if (reloading || player.dead || matchEnded) return; // en la pantalla de resultados no se dispara
     const w = WEAPONS[curWeapon], st = ammo[curWeapon];
     if (st.mag <= 0) { reload(); return; }
     st.mag--; updateAmmo(); sfx(curWeapon); if (st.mag <= 0) setTimeout(reload, 180); // recarga automática
@@ -1773,7 +1773,7 @@
       if (remotes[fromId]) { remotes[fromId].dead = true; setTimeout(() => { if (remotes[fromId]) remotes[fromId].dead = false; }, 1600); }
       if (net.host) { d.from = sender; net.broadcast(d, sender); }
     } else if (d.t === 'board') {
-      boardList = d.list || []; matchTimeLeft = d.tl != null ? d.tl : matchTimeLeft; matchEnded = !!d.ended;
+      boardList = d.list || []; matchTimeLeft = d.tl != null ? d.tl : matchTimeLeft; matchEnded = !!d.ended; if (!matchEnded) document.getElementById('endscreen').style.display = 'none';
     } else if (d.t === 'matchend') {
       matchEnded = true; showEndScreen(d.winner, d.list);
     } else if (d.t === 'reset') {
@@ -1999,7 +1999,8 @@
     function visibleFoe() {
       const eye = V(player.pos.x, player.pos.y + EYE, player.pos.z); let best = null, bd = 70;
       const cands = net.active ? Object.values(remotes).filter(r => !r.dead && r.group.visible).map(r => r.group.position) : enemies.filter(e => e.visible).map(e => e.position);
-      if (net.active) { R.net.maxRemotes = Math.max(R.net.maxRemotes, cands.length); if (cands.length) R.net.remotesSeen++; }
+      if (net.active) { R.net.maxRemotes = Math.max(R.net.maxRemotes, cands.length); if (cands.length) R.net.remotesSeen++;
+        R.net.cur = Object.keys(remotes).length; if (R.net.cur > 1) issue('ghost_player', player.pos, R.net.cur + ' remotos'); }
       for (const p of cands) { const tgt = V(p.x, p.y + 1.8, p.z), d = tgt.distanceTo(eye); if (d > bd) continue;
         ray.set(eye, tgt.clone().sub(eye).normalize()); ray.far = d - 0.5; if (ray.intersectObjects(solids, false).length) continue; best = tgt; bd = d; }
       return best;
@@ -2012,7 +2013,7 @@
       if (fpsT > 2) { const f = fpsN / fpsAcc; R.fps.min = Math.min(R.fps.min, +f.toFixed(1)); R.fps.samples.push(+f.toFixed(1)); if (R.fps.samples.length > 60) R.fps.samples.shift(); if (f < 15) issue('low_fps', player.pos, f.toFixed(0) + 'fps'); fpsAcc = 0; fpsN = 0; fpsT = 0; }
       for (const k of ['KeyW', 'KeyA', 'KeyD', 'KeyS', 'Space']) keys[k] = false;
       firing = false;
-      if (player.dead) { if (!wasDead && performance.now() - aliveAt < 4000) issue('spawn_killed', player.pos, ((performance.now() - aliveAt) / 1000).toFixed(1) + 's'); wasDead = true; return; }
+      if (player.dead) { if (!wasDead && performance.now() - aliveAt < 4000) issue('spawn_killed', player.pos, ((performance.now() - aliveAt) / 1000).toFixed(1) + 's'); if (!wasDead && matchEnded) issue('killed_after_end', player.pos); wasDead = true; return; }
       if (wasDead) { wasDead = false; aliveAt = performance.now(); R.combat.deaths++; log('muerto'); task = null; prevP = null;
         if (insideSolid(player.pos) || (terrainFn && terrainH(player.pos.x, player.pos.z) > player.pos.y + 0.5)) issue('bad_spawn', player.pos); }
       if (ammo[curWeapon].mag <= 0 && !reloading) { noAmmoT += dt; if (noAmmoT > 2) { issue('reload_stuck', player.pos, curWeapon); noAmmoT = 0; } } else noAmmoT = 0;

@@ -16,13 +16,22 @@
 <script>
   const A = document.getElementById('a'), B = document.getElementById('b'), st = document.getElementById('st'), out = document.getElementById('out');
   const map = new URLSearchParams(location.search).get('map') || 'city';
+  const Q_REJOIN = new URLSearchParams(location.search).get('rejoin') !== '0';
   document.getElementById('map').value = map;
   document.getElementById('restart').onclick = () => { location.search = '?map=' + document.getElementById('map').value; };
   A.src = 'index.html?bot=1&host=1&map=' + map;
   const iv = setInterval(() => {
     const code = A.contentWindow && A.contentWindow.__botRoomCode;
-    if (code) { clearInterval(iv); st.textContent = 'sala ' + code; B.src = 'index.html?bot=1&join=' + code + '&map=' + map; }
+    if (code) { clearInterval(iv); st.textContent = 'sala ' + code; B.src = 'index.html?bot=1&join=' + code + '&map=' + map; window.__code = code; }
   }, 500);
+  // prueba de reconexión: cada 2 partidas del anfitrión, el invitado se sale y vuelve a entrar
+  let lastRejoin = 0; window.__rejoins = 0;
+  setInterval(() => {
+    const ra = A.contentWindow && A.contentWindow.__botReport ? A.contentWindow.__botReport() : null;
+    if (!ra || !window.__code || !Q_REJOIN) return;
+    const n = (ra.rounds || []).length;
+    if (n >= lastRejoin + 2) { lastRejoin = n; window.__rejoins++; st.textContent = 'sala ' + window.__code + ' · reconexión ' + window.__rejoins; B.src = 'index.html?bot=1&join=' + window.__code + '&map=' + map + '&r=' + window.__rejoins; }
+  }, 2000);
   function report() {
     const ra = A.contentWindow && A.contentWindow.__botReport ? A.contentWindow.__botReport() : null;
     const rb = B.contentWindow && B.contentWindow.__botReport ? B.contentWindow.__botReport() : null;
