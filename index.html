@@ -38,6 +38,18 @@
 
   #stats { position: absolute; top: 14px; left: 16px; font-size: 14px; line-height: 1.6; text-shadow: 0 1px 3px #000; }
   #stats b { color: #ffb13b; }
+  #timer { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 30px; font-weight: 800; color: #fff; text-shadow: 0 2px 6px #000; letter-spacing: 1px; }
+  #leaderboard { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); min-width: 190px; background: rgba(10,18,32,.6); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 6px 10px; font-size: 13px; color: #dce7f2; backdrop-filter: blur(4px); }
+  #leaderboard .row { display: flex; justify-content: space-between; gap: 14px; padding: 2px 0; }
+  #leaderboard .row.me { color: #ffd98a; font-weight: 700; }
+  #leaderboard .row b { color: #49d06a; }
+  #endscreen { position: fixed; inset: 0; z-index: 24; display: none; align-items: center; justify-content: center; background: rgba(6,12,22,.9); }
+  #endscreen .ebox { text-align: center; min-width: 320px; }
+  #endscreen h2 { font-size: 34px; color: #ffb13b; margin-bottom: 16px; }
+  #endBoard { display: inline-block; text-align: left; background: rgba(255,255,255,.05); border-radius: 12px; padding: 12px 18px; }
+  #endBoard .row { display: flex; justify-content: space-between; gap: 30px; padding: 4px 0; font-size: 17px; color: #e5edf7; }
+  #endBoard .row.first { color: #ffd98a; font-weight: 800; }
+  #nameInput { pointer-events: auto; width: 220px; text-align: center; font: inherit; font-weight: 600; padding: 9px; border-radius: 10px; border: 2px solid rgba(255,255,255,.2); background: rgba(0,0,0,.3); color: #fff; margin-bottom: 14px; }
   #health { position: absolute; left: 22px; bottom: 26px; width: 240px; }
   #health #healthbar { height: 16px; width: 100%; background: #49d06a; border-radius: 8px; box-shadow: 0 0 0 2px rgba(0,0,0,.4) inset; transition: width .12s, background .2s; }
   #health #hptext { position: absolute; left: 10px; top: -2px; font-weight: 800; font-size: 14px; color: #fff; text-shadow: 0 1px 3px #000; }
@@ -103,8 +115,18 @@
   </div>
 </div>
 
+<div id="endscreen">
+  <div class="ebox">
+    <h2 id="endTitle">¡Fin de la partida!</h2>
+    <div id="endBoard"></div>
+    <p style="color:#9fb3c8;margin-top:14px">Nueva partida en unos segundos…</p>
+  </div>
+</div>
+
 <div id="hud">
   <div id="stats">Bajas: <b id="score">0</b> · Muertes: <span id="deaths">0</span><br/><span id="viewmode" style="color:#9fb3c8">Vista: 1ª persona</span></div>
+  <div id="timer">4:00</div>
+  <div id="leaderboard"></div>
   <div id="health"><div id="healthbar"></div><span id="hptext">100</span></div>
   <div id="hint">
     <kbd>WASD</kbd> moverte · <kbd>Espacio</kbd> saltar · <kbd>Shift</kbd> correr<br/>
@@ -122,6 +144,7 @@
     <div id="charList"></div>
     <div id="previewBox"></div>
   </div>
+  <input id="nameInput" maxlength="12" placeholder="Tu nombre" />
   <div id="mapSel">
     <button class="mapbtn active" data-map="desert">🏜️ Desierto</button>
     <button class="mapbtn" data-map="city">🏙️ Ciudad (Tilted)</button>
@@ -180,7 +203,6 @@
   const camera = new T.PerspectiveCamera(BASE_FOV, innerWidth / innerHeight, 0.05, 1000);
   camera.rotation.order = 'YXZ';
   scene.add(camera); // para que el viewmodel (hijo de la cámara) se renderice
-  window.__view = (x, y, z, tx, ty, tz) => { camera.position.set(x, y, z); camera.lookAt(tx || 0, ty || 2, tz || 0); camera.updateProjectionMatrix(); renderer.render(scene, camera); };
 
   scene.add(new T.HemisphereLight(0xcfe0ff, 0x24334d, 1.0));
   const sun = new T.DirectionalLight(0xffffff, 0.9);
@@ -579,8 +601,11 @@
     if (player.dead) return;
     player.hp -= d; flashDamage(); updateHealth();
     if (player.hp <= 0) {
-      player.hp = 0; player.dead = true; player.respawn = 1.6;
-      if (net.active) { const msg = { t: 'died', from: net.id, by: player.lastAttacker || null }; if (net.host) net.broadcast(msg); else net.toHost(msg); }
+      player.hp = 0; player.dead = true; player.respawn = 2.0; deaths++; updateHealth();
+      if (net.active) {
+        const msg = { t: 'died', from: net.id, by: player.lastAttacker || null };
+        if (net.host) { registerKill(player.lastAttacker); net.broadcast(msg); } else net.toHost(msg);
+      }
     }
   }
   function respawnPlayer() {
@@ -900,7 +925,7 @@
       net.sendT -= dt;
       if (net.sendT <= 0) {
         net.sendT = 0.05;
-        const st = { t: 's', x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: yaw, hp: player.hp, w: curWeapon, ch: selectedChar, dd: player.dead };
+        const st = { t: 's', x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: yaw, hp: player.hp, w: curWeapon, ch: selectedChar, nm: playerName, dd: player.dead };
         if (net.host) { st.from = 'host'; net.broadcast(st); } else net.toHost(st);
       }
       for (const id in remotes) {
@@ -912,6 +937,7 @@
         if (r.bar) { r.bar.lookAt(camera.position); r.barFill.scale.x = Math.max(0.01, r.hp / MAXHP); }
       }
     }
+    tickMatch(dt); // leaderboard + temporizador + fin de partida
 
     // enemigos (bots): sólo en modo offline
     if (!net.active) for (const e of enemies) {
@@ -1041,6 +1067,63 @@
   const remotes = {};              // id -> jugador rival
   const remoteMeshMap = new Map(); // mesh -> id
 
+  // ---------- Partida / leaderboard ----------
+  let playerName = '';
+  const match = { limitKills: 15, limitSec: 240 };
+  let matchStart = 0, matchEnded = false, matchTimeLeft = match.limitSec, boardList = [], boardSendT = 0;
+  const board = {}; // host/offline: id -> {name, ch, kills}
+  const CHAR_EMOJI = { stick: '🪵', doge: '🐕', troll: '😈', wojak: '😐', chad: '😎' };
+  function esc(s) { return (s || '').replace(/[<>&]/g, ''); }
+  function registerKill(byId) {
+    if (byId == null) return;
+    if (!board[byId]) board[byId] = { name: byId === 'host' ? playerName : ('J' + String(byId).slice(0, 3)), ch: 'troll', kills: 0 };
+    board[byId].kills++;
+  }
+  function renderBoard() {
+    const m = Math.floor(matchTimeLeft / 60), s = Math.floor(matchTimeLeft % 60);
+    document.getElementById('timer').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    document.getElementById('leaderboard').innerHTML = boardList.slice(0, 6).map(e =>
+      '<div class="row' + ((e.id === net.id || (!net.active && e.id === 'me')) ? ' me' : '') + '"><span>' + (CHAR_EMOJI[e.ch] || '') + ' ' + esc(e.name) + '</span><b>' + e.kills + '</b></div>').join('');
+  }
+  function showEndScreen(winner, list) {
+    document.getElementById('endTitle').textContent = winner ? ('🏆 Gana ' + esc(winner.name) + ' — ' + winner.kills) : '¡Fin de la partida!';
+    document.getElementById('endBoard').innerHTML = (list || []).slice(0, 8).map((e, i) =>
+      '<div class="row' + (i === 0 ? ' first' : '') + '"><span>' + (i + 1) + '. ' + (CHAR_EMOJI[e.ch] || '') + ' ' + esc(e.name) + '</span><span>' + e.kills + '</span></div>').join('');
+    document.getElementById('endscreen').style.display = 'flex';
+  }
+  function endMatch(winner) {
+    matchEnded = true;
+    if (net.active && net.host) net.broadcast({ t: 'matchend', winner: winner || null, list: boardList });
+    showEndScreen(winner, boardList);
+    if (!net.active || net.host) setTimeout(resetMatch, 6000);
+  }
+  function resetMatch() {
+    matchEnded = false; matchStart = performance.now(); score = 0;
+    for (const id in board) board[id].kills = 0;
+    document.getElementById('score').textContent = 0;
+    document.getElementById('endscreen').style.display = 'none';
+    respawnPlayer();
+    if (net.active && net.host) net.broadcast({ t: 'reset' });
+  }
+  function tickMatch(dt) {
+    if (!net.active || net.host) { // autoridad (offline u host)
+      if (net.active && net.host) {
+        board['host'] = board['host'] || { name: playerName, ch: selectedChar, kills: 0 };
+        board['host'].name = playerName; board['host'].ch = selectedChar;
+        for (const id in board) if (id !== 'host' && !remotes[id]) delete board[id];
+        boardList = Object.keys(board).map(id => ({ id, name: board[id].name, ch: board[id].ch, kills: board[id].kills }));
+      } else {
+        boardList = [{ id: 'me', name: playerName, ch: selectedChar, kills: score }];
+      }
+      boardList.sort((a, b) => b.kills - a.kills);
+      matchTimeLeft = Math.max(0, match.limitSec - (performance.now() - matchStart) / 1000);
+      if (!matchEnded) { const top = boardList[0]; if ((top && top.kills >= match.limitKills) || matchTimeLeft <= 0) endMatch(top); }
+      if (net.active && net.host) { boardSendT -= dt; if (boardSendT <= 0) { boardSendT = 0.4; net.broadcast({ t: 'board', list: boardList, tl: matchTimeLeft, ended: matchEnded }); } }
+    }
+    if (net.active) { const me = boardList.find(e => e.id === net.id); if (me && me.kills !== score) { score = me.kills; document.getElementById('score').textContent = score; } }
+    renderBoard();
+  }
+
   function makeRemotePlayer(id, charId) {
     if (remotes[id]) removeRemotePlayer(id);
     const g = buildCharacter(charId || 'troll');
@@ -1072,7 +1155,11 @@
       if (fromId == null || fromId === net.id) return;
       const r = remotes[fromId] || makeRemotePlayer(fromId, d.ch);
       r.target.set(d.x, d.y, d.z); r.yaw = d.yaw; r.hp = d.hp; r.w = d.w || 'rifle'; r.dead = !!d.dd;
-      if (net.host) { d.from = sender; net.broadcast(d, sender); }
+      if (net.host) {
+        board[fromId] = board[fromId] || { name: d.nm || 'Jugador', ch: d.ch, kills: 0 };
+        board[fromId].name = d.nm || board[fromId].name; board[fromId].ch = d.ch;
+        d.from = sender; net.broadcast(d, sender);
+      }
     } else if (d.t === 'hit') {
       if (d.target === net.id) { player.lastAttacker = d.from; damagePlayer(d.d); }
       else if (net.host) { net.sendTo(d.target, d); }
@@ -1081,9 +1168,15 @@
       if (net.host) { d.from = sender; net.broadcast(d, sender); }
     } else if (d.t === 'died') {
       const fromId = net.host ? sender : d.from;
-      if (d.by === net.id) { score++; document.getElementById('score').textContent = score; }
+      if (net.host) registerKill(d.by);
       if (remotes[fromId]) { remotes[fromId].dead = true; setTimeout(() => { if (remotes[fromId]) remotes[fromId].dead = false; }, 1600); }
       if (net.host) { d.from = sender; net.broadcast(d, sender); }
+    } else if (d.t === 'board') {
+      boardList = d.list || []; matchTimeLeft = d.tl != null ? d.tl : matchTimeLeft; matchEnded = !!d.ended;
+    } else if (d.t === 'matchend') {
+      matchEnded = true; showEndScreen(d.winner, d.list);
+    } else if (d.t === 'reset') {
+      matchEnded = false; document.getElementById('endscreen').style.display = 'none'; score = 0; document.getElementById('score').textContent = 0; respawnPlayer();
     } else if (d.t === 'leave') { removeRemotePlayer(d.id); }
   }
   function sendHit(vid, dmg) {
@@ -1165,7 +1258,10 @@
     clearRemotes();
     enemies.forEach(e => { e.visible = !net.active; });
     if (!net.active) enemies.forEach(respawnEnemy);
+    playerName = (document.getElementById('nameInput').value || '').trim().slice(0, 12) || ('Jugador' + (10 + (Math.random() * 89 | 0)));
     score = 0; deaths = 0; document.getElementById('score').textContent = 0;
+    for (const k in board) delete board[k]; boardList = []; matchEnded = false; matchStart = performance.now(); matchTimeLeft = match.limitSec;
+    document.getElementById('endscreen').style.display = 'none';
     player.hp = MAXHP; player.dead = false; player.lastAttacker = null; updateHealth();
     player.pos.copy(spawnPoint); player.vel.set(0, 0, 0);
     setAvatar(selectedChar); setWeapon('rifle');
