@@ -549,6 +549,9 @@
       stone: L(blocksTex(0, [158, 152, 140], 72, 34, '#77726a')),
       stoneL: L(blocksTex(0, [192, 188, 178], 72, 34, '#8d887d')),
       tan: L(blocksTex(0, [178, 158, 118], 64, 30, '#7d6c4f')),
+      cream: L(blocksTex(0, [214, 196, 160], 36, 14, '#a8946c')),
+      sand: L(blocksTex(0, [200, 178, 140], 40, 18, '#97835f')),
+      domeMat: new T.MeshLambertMaterial({ color: 0xd8c7a6 }), hedge: new T.MeshLambertMaterial({ color: 0x3f7a2c }),
       blue: L(canvasTex(128, (x, s) => { x.fillStyle = '#4b79ba'; x.fillRect(0, 0, s, s); for (let y = 0; y < s; y += 16) { x.fillStyle = 'rgba(255,255,255,.2)'; x.fillRect(0, y, s, 2); x.fillStyle = 'rgba(0,0,0,.18)'; x.fillRect(0, y + 13, s, 3); } speckle(x, s, 200, 0.08); })),
       trim: C(0xdcd5c5), white: C(0xf0efe9), dark: C(0x2f3136), glass: new T.MeshLambertMaterial({ color: 0x7fa6c4, transparent: true, opacity: 0.45 }),
       roof: L(canvasTex(128, (x, s) => { x.fillStyle = '#56585d'; x.fillRect(0, 0, s, s); speckle(x, s, 900, 0.18); })),
@@ -604,61 +607,81 @@
   }
   // Bloque de edificio entrable de varias plantas: paredes con ventanas reales, forjados con hueco,
   // escaleras alternas (pozo A/B) hasta la azotea con antepecho.
+  // arco decorativo (medio toro) sobre un hueco
+  function tArch(cx, cy, cz, r, alongX, mat) {
+    const g = new T.TorusGeometry(r, 0.18, 6, 14, Math.PI);
+    if (!alongX) g.rotateY(Math.PI / 2);
+    g.translate(cx, cy, cz); batchAdd(mat, g);
+  }
   function tblock(o) {
-    const { x0, z0, x1, z1, floors } = o, t = 0.4, M = TM;
+    const { x0, z0, x1, z1, floors } = o, t = 0.4, M = TM, fh = o.fh || FH;
     const band = o.band || o.mat, W = x1 - x0, D = z1 - z0;
-    const winW = 1.6, sill = 1.05, head = 2.55;
+    const sill = 1.05, head = Math.min(fh - 0.75, 2.55 + (fh - FH) * 0.6);
     const matNS = o.matNS || o.mat, matEW = o.matEW || o.mat;
-    function side(ax, fixed, a0, a1, yb, isDoor, mat) {
-      const len = a1 - a0, n = Math.max(1, Math.floor((len - 1.0) / 3.2)), step = len / n, dIdx = isDoor ? Math.floor(n / 2) : -1;
+    function side(ax, fixed, a0, a1, yb, isDoor, mat, ground) {
+      const arch = ground && o.arch, winW = arch ? 2.6 : (o.winW || 1.6);
+      const len = a1 - a0, n = Math.max(1, Math.floor((len - 1.0) / (arch ? 4.4 : (o.winStep || 3.2)))), step = len / n, dIdx = isDoor ? Math.floor(n / 2) : -1;
       const P = (p0, p1, y0, y1, m) => ax === 'x' ? tbox(p0, y0, fixed - t / 2, p1, y1, fixed + t / 2, m) : tbox(fixed - t / 2, y0, p0, fixed + t / 2, y1, p1, m);
       for (let i = 0; i < n; i++) {
         const c = a0 + step * (i + 0.5), w0 = c - winW / 2, w1 = c + winW / 2, s0 = a0 + step * i, s1 = a0 + step * (i + 1);
-        P(s0, w0, yb, yb + FH, mat); P(w1, s1, yb, yb + FH, mat);
-        if (i === dIdx) P(w0, w1, yb + 2.75, yb + FH, band);
-        else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + FH, band); }
-        // marco de la ventana/puerta (visual)
-        const fy0 = i === dIdx ? yb : yb + sill, fy1 = i === dIdx ? yb + 2.75 : yb + head, ft = t + 0.14, fm = o.frame || M.white;
+        P(s0, w0, yb, yb + fh, mat); P(w1, s1, yb, yb + fh, mat);
+        const door = i === dIdx || arch, dTop = arch ? fh - 0.8 - winW / 2 : 2.75;
+        if (door) P(w0, w1, yb + dTop, yb + fh, band);
+        else { P(w0, w1, yb, yb + sill, band); P(w0, w1, yb + head, yb + fh, band); }
+        if (arch) { // arco de medio punto
+          const ax2 = ax === 'x'; tArch(ax2 ? c : fixed, yb + dTop, ax2 ? fixed : c, winW / 2 + 0.05, ax2, o.frame || M.trim);
+          continue;
+        }
+        const fy0 = door ? yb : yb + sill, fy1 = door ? yb + 2.75 : yb + head, ft = t + 0.14, fm = o.frame || M.white;
         const F = (p0, p1, y0, y1) => ax === 'x' ? tbox(p0, y0, fixed - ft / 2, p1, y1, fixed + ft / 2, fm, false) : tbox(fixed - ft / 2, y0, p0, fixed + ft / 2, y1, p1, fm, false);
         F(w0 - 0.14, w0, fy0, fy1); F(w1, w1 + 0.14, fy0, fy1); F(w0 - 0.14, w1 + 0.14, fy1, fy1 + 0.14);
-        if (i !== dIdx) { F(w0 - 0.2, w1 + 0.2, fy0 - 0.12, fy0); F(c - 0.05, c + 0.05, fy0, fy1); }
+        if (!door) { F(w0 - 0.2, w1 + 0.2, fy0 - 0.12, fy0); F(c - 0.05, c + 0.05, fy0, fy1); }
       }
     }
     const doors = o.doors || '';
     for (let f = 0; f < floors; f++) {
-      const yb = f * FH, g = f === 0;
-      side('x', z0, x0, x1, yb, g && doors.includes('N'), matNS);
-      side('x', z1, x0, x1, yb, g && doors.includes('S'), matNS);
-      side('z', x0, z0, z1, yb, g && doors.includes('W'), matEW);
-      side('z', x1, z0, z1, yb, g && doors.includes('E'), matEW);
+      const yb = f * fh, g = f === 0, bm = g && o.baseMat;
+      side('x', z0, x0, x1, yb, g && doors.includes('N'), bm || matNS, g);
+      side('x', z1, x0, x1, yb, g && doors.includes('S'), bm || matNS, g);
+      side('z', x0, z0, z1, yb, g && doors.includes('W'), bm || matEW, g);
+      side('z', x1, z0, z1, yb, g && doors.includes('E'), bm || matEW, g);
     }
-    if (o.corner) for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) tbox(cx - 0.45, 0, cz - 0.45, cx + 0.45, floors * FH + 0.3, cz + 0.45, o.corner, false);
-    for (let f = 1; f < floors; f++) tbox(x0 - 0.12, f * FH - 0.22, z0 - 0.12, x1 + 0.12, f * FH + 0.02, z1 + 0.12, band, false); // líneas de forjado
+    if (o.corner) for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) tbox(cx - 0.45, 0, cz - 0.45, cx + 0.45, floors * fh + 0.3, cz + 0.45, o.corner, false);
+    for (let f = 1; f < floors; f++) tbox(x0 - 0.12, f * fh - 0.22, z0 - 0.12, x1 + 0.12, f * fh + 0.02, z1 + 0.12, band, false); // líneas de forjado
     tbox(x0 + t / 2, 0, z0 + t / 2, x1 - t / 2, 0.04, z1 - t / 2, M.wood, false);
     // escaleras y forjados
     const canStairs = o.stairs !== false && W >= 6.6 && D >= 7.2;
-    const RUN = Math.min(6.4, D - 2 * t - 2.4), wellW = 2.4;
+    const RUN = Math.min(6.4 * fh / FH, D - 2 * t - 2.4), wellW = 2.4;
     const zs = z0 + t + 1.2, ze = zs + RUN;
     const wells = [[x0 + t, x0 + t + wellW], [x1 - t - wellW, x1 - t]];
     for (let j = 1; j <= floors; j++) {
-      const y = j * FH, top = j === floors, sm = top ? M.roof : M.wood;
-      if (canStairs) {
+      const y = j * fh, top = j === floors, sm = top ? M.roof : M.wood;
+      if (canStairs && (!top || o.roofAccess !== false)) {
         const [hx0, hx1] = wells[(j - 1) % 2];
         tbox(x0, y - 0.3, z0, hx0, y, z1, sm); tbox(hx1, y - 0.3, z0, x1, y, z1, sm);
         tbox(hx0, y - 0.3, z0, hx1, y, zs, sm); tbox(hx0, y - 0.3, ze, hx1, y, z1, sm);
-        tramp((hx0 + hx1) / 2, zs, (hx0 + hx1) / 2, ze, y - FH, y, wellW - 0.2, M.wood);
+        tramp((hx0 + hx1) / 2, zs, (hx0 + hx1) / 2, ze, y - fh, y, wellW - 0.2, M.wood);
       } else tbox(x0, y - 0.3, z0, x1, y, z1, sm);
     }
-    // azotea: antepecho
-    const ry = floors * FH, pm = o.parapet || band;
-    tbox(x0 - 0.15, ry, z0 - 0.15, x1 + 0.15, ry + 0.8, z0 + 0.3, pm); tbox(x0 - 0.15, ry, z1 - 0.3, x1 + 0.15, ry + 0.8, z1 + 0.15, pm);
-    tbox(x0 - 0.15, ry, z0, x0 + 0.3, ry + 0.8, z1, pm); tbox(x1 - 0.3, ry, z0, x1 + 0.15, ry + 0.8, z1, pm);
+    // azotea: antepecho y aparatos de aire
+    const ry = floors * fh, pm = o.parapet || band;
+    if (o.parapetH !== 0) {
+      const ph = o.parapetH || 0.8;
+      tbox(x0 - 0.15, ry, z0 - 0.15, x1 + 0.15, ry + ph, z0 + 0.3, pm); tbox(x0 - 0.15, ry, z1 - 0.3, x1 + 0.15, ry + ph, z1 + 0.15, pm);
+      tbox(x0 - 0.15, ry, z0, x0 + 0.3, ry + ph, z1, pm); tbox(x1 - 0.3, ry, z0, x1 + 0.15, ry + ph, z1, pm);
+    }
+    const nAC = o.ac === undefined ? Math.min(3, Math.floor(W * D / 70)) : o.ac;
+    for (let k = 0; k < nAC; k++) {
+      const ax0 = x0 + 3 + ((k * 7.3) % Math.max(1, W - 7)), az0 = z1 - 4.5 - ((k * 3.1) % Math.max(1, D - 8));
+      tbox(ax0, ry, az0, ax0 + 2.2, ry + 1.3, az0 + 1.6, M.trim); tbox(ax0 + 0.3, ry + 1.3, az0 + 0.3, ax0 + 1.9, ry + 1.45, az0 + 1.3, M.dark, false);
+    }
+    return ry;
   }
   // rect en coordenadas del MODELO -> bloque
   function mblock(mx0, mx1, my0, my1, floors, style, doors, extra) {
-    const S = { stone: { mat: TM.stone, band: TM.trim }, tan: { mat: TM.tan, band: TM.trim }, brick: { mat: TM.brick, band: TM.trim },
+    const S = { stone: { mat: TM.stone, band: TM.stone }, tan: { mat: TM.tan, band: TM.tan }, brick: { mat: TM.brick, band: TM.trim },
       brickT: { mat: TM.brick, band: TM.stone, corner: TM.stone }, blue: { mat: TM.blue, matEW: TM.brick, band: TM.white, parapet: TM.white },
-      light: { mat: TM.stoneL, band: TM.trim } }[style];
+      light: { mat: TM.stoneL, band: TM.stoneL } }[style];
     tblock(Object.assign({ x0: tx(mx0), x1: tx(mx1), z0: tz(my1), z1: tz(my0), floors, doors }, S, extra || {}));
   }
   function tTree(x, z, s) {
@@ -674,32 +697,79 @@
     if (alongX) tbox(x - L / 2 - 0.05, 1.6, z - W / 2 - 0.05, x + L / 2 + 0.05, 2.6, z + W / 2 + 0.05, TM.glass, false); else tbox(x - W / 2 - 0.05, 1.6, z - L / 2 - 0.05, x + W / 2 + 0.05, 2.6, z + L / 2 + 0.05, TM.glass, false);
   }
   function tClockTower(cx, cz) {
-    const s = 8.6, M = TM, fl = 7;
-    tblock({ x0: cx - s / 2, x1: cx + s / 2, z0: cz - s / 2, z1: cz + s / 2, floors: fl, mat: M.stoneL, band: M.trim, corner: M.trim, doors: 'S' });
-    const top = fl * FH + 0.8, p = 1.3;
-    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const px = cx + sx * (s / 2 - p / 2), pz = cz + sz * (s / 2 - p / 2);
-      tbox(px - p / 2, top, pz - p / 2, px + p / 2, top + 5.2, pz + p / 2, M.stoneL);
+    const M = TM, b = 9.4, s = 7.2, fl = 7, fh = 3.6;
+    // torre de ladrillo crema, planta baja de piedra con arcos; escalera interior hasta el campanario
+    tblock({ x0: cx - s / 2, x1: cx + s / 2, z0: cz - s / 2, z1: cz + s / 2, floors: fl, fh, mat: M.cream, baseMat: M.stoneL, band: M.trim, corner: M.trim, doors: 'S', arch: true, winW: 1.1, parapetH: 0, ac: 0 });
+    // zócalo ancho de piedra (base)
+    tbox(cx - b / 2, 0, cz - b / 2, cx + b / 2, 1.0, cz - s / 2, M.stoneL); tbox(cx - b / 2, 0, cz + s / 2, cx - 1.6, 1.0, cz + b / 2, M.stoneL); tbox(cx + 1.6, 0, cz + s / 2, cx + b / 2, 1.0, cz + b / 2, M.stoneL);
+    tbox(cx - b / 2, 0, cz - s / 2, cx - s / 2, 1.0, cz + s / 2, M.stoneL); tbox(cx + s / 2, 0, cz - s / 2, cx + b / 2, 1.0, cz + s / 2, M.stoneL);
+    tbox(cx - s / 2 - 0.35, fh - 0.3, cz - s / 2 - 0.35, cx + s / 2 + 0.35, fh + 0.2, cz + s / 2 + 0.35, M.trim, false);
+    const top = fl * fh;
+    tbox(cx - s / 2 - 0.5, top - 0.2, cz - s / 2 - 0.5, cx + s / 2 + 0.5, top + 0.5, cz + s / 2 + 0.5, M.trim);
+    // belfry con arcos
+    const p = 1.1, bh = 4.4;
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const px = cx + sx * (s / 2 - p / 2), pz = cz + sz * (s / 2 - p / 2); tbox(px - p / 2, top + 0.5, pz - p / 2, px + p / 2, top + 0.5 + bh, pz + p / 2, M.cream); }
+    const ar = (s - 2 * p) / 2;
+    for (const [dx, dz, alongX] of [[0, -s / 2 + 0.3, true], [0, s / 2 - 0.3, true], [-s / 2 + 0.3, 0, false], [s / 2 - 0.3, 0, false]]) {
+      tArch(cx + dx, top + 0.5 + bh - ar - 0.2, cz + dz, ar, alongX, M.trim);
+      if (alongX) tbox(cx - s / 2, top + bh - 0.3, cz + dz - 0.3, cx + s / 2, top + 0.5 + bh, cz + dz + 0.3, M.cream, false);
+      else tbox(cx + dx - 0.3, top + bh - 0.3, cz - s / 2, cx + dx + 0.3, top + 0.5 + bh, cz + s / 2, M.cream, false);
     }
-    tbox(cx - s / 2, top + 4.3, cz - s / 2, cx + s / 2, top + 5.2, cz - s / 2 + 0.7, M.trim, false);
-    tbox(cx - s / 2, top + 4.3, cz + s / 2 - 0.7, cx + s / 2, top + 5.2, cz + s / 2, M.trim, false);
-    tbox(cx - s / 2, top + 4.3, cz - s / 2, cx - s / 2 + 0.7, top + 5.2, cz + s / 2, M.trim, false);
-    tbox(cx + s / 2 - 0.7, top + 4.3, cz - s / 2, cx + s / 2, top + 5.2, cz + s / 2, M.trim, false);
-    tbox(cx - s / 2 - 0.4, top + 5.2, cz - s / 2 - 0.4, cx + s / 2 + 0.4, top + 5.9, cz + s / 2 + 0.4, M.trim);
+    tbox(cx - s / 2 - 0.4, top + 0.5 + bh, cz - s / 2 - 0.4, cx + s / 2 + 0.4, top + 1.1 + bh, cz + s / 2 + 0.4, M.trim);
     const bell = new T.Mesh(new T.CylinderGeometry(0.7, 1.3, 1.8, 12, 1, true), new T.MeshLambertMaterial({ color: 0xb08a3e, side: T.DoubleSide })); bell.position.set(cx, top + 2.6, cz); mapGroup.add(bell);
     const cone = new T.ConeGeometry(1, 1, 4); cone.rotateY(Math.PI / 4);
-    const roof = new T.Mesh(cone, M.slate); roof.scale.set(s / 1.414 + 0.6, 4.6, s / 1.414 + 0.6); roof.position.set(cx, top + 5.9 + 2.3, cz); mapGroup.add(roof);
-    const ring = new T.MeshLambertMaterial({ color: 0xd4a93c });
-    for (const [dx, dz, ry] of [[0, s / 2 + 0.26, 0], [0, -s / 2 - 0.26, Math.PI], [s / 2 + 0.26, 0, Math.PI / 2], [-s / 2 - 0.26, 0, -Math.PI / 2]]) {
-      const y = (fl - 1) * FH + 1.7;
-      const face = new T.Mesh(new T.CircleGeometry(1.55, 28), new T.MeshBasicMaterial({ map: clockTex })); face.position.set(cx + dx, y, cz + dz); face.rotation.y = ry; mapGroup.add(face);
-      const tor = new T.Mesh(new T.TorusGeometry(1.62, 0.16, 8, 28), ring); tor.position.set(cx + dx * 0.995, y, cz + dz * 0.995); tor.rotation.y = ry; mapGroup.add(tor);
+    const roof = new T.Mesh(cone, M.slate); roof.castShadow = true; roof.scale.set(s / 1.414 + 0.7, 3.2, s / 1.414 + 0.7); roof.position.set(cx, top + 1.1 + bh + 1.6, cz); mapGroup.add(roof);
+    // esferas grandes del reloj en la última planta
+    const ring = new T.MeshLambertMaterial({ color: 0x8a6a2a });
+    for (const [dx, dz, ry] of [[0, s / 2 + 0.3, 0], [0, -s / 2 - 0.3, Math.PI], [s / 2 + 0.3, 0, Math.PI / 2], [-s / 2 - 0.3, 0, -Math.PI / 2]]) {
+      const y = top - fh / 2 - 0.3;
+      tbox(cx + dx - (dz ? 2.3 : 0.25), y - 2.3, cz + dz - (dz ? 0.25 : 2.3), cx + dx + (dz ? 2.3 : 0.25), y + 2.3, cz + dz + (dz ? 0.25 : 2.3), M.trim, false);
+      const face = new T.Mesh(new T.CircleGeometry(1.85, 32), new T.MeshBasicMaterial({ map: clockTex })); const k = (Math.abs(dx) + Math.abs(dz) + 0.32) / (Math.abs(dx) + Math.abs(dz)); face.position.set(cx + dx * k, y, cz + dz * k); face.rotation.y = ry; mapGroup.add(face);
+      const tor = new T.Mesh(new T.TorusGeometry(1.95, 0.22, 8, 32), ring); tor.position.set(cx + dx * k, y, cz + dz * k); tor.rotation.y = ry; mapGroup.add(tor);
     }
+    // jardineras alrededor de la base
+    for (const [dx, dz] of [[-1, 1], [1, 1]]) tbox(cx + dx * (b / 2 + 1.6) - 1.2, 0, cz + b / 2 - 3, cx + dx * (b / 2 + 1.6) + 1.2, 0.8, cz + b / 2 + 2, M.hedge);
   }
-  function tHill(mx0, mx1, my0, my1, mh) {
-    const x0 = tx(mx0), x1 = tx(mx1), z0 = tz(my1), z1 = tz(my0), h = mh * TS;
-    tbox(x0, 0, z0, x1, h, z1, TM.rock, true, 6);
-    tbox(x0 - 0.3, h, z0 - 0.3, x1 + 0.3, h + 0.6, z1 + 0.3, TM.grass, false, 4);
+  // ejecuta fn desplazando en Y todo lo que construya (para apilar bloques)
+  function batches_push_offset(dy, fn) {
+    const before = new Map(); for (const [m, a] of batches) before.set(m, a.length);
+    const s0 = solids.length, r0 = ramps.length;
+    fn();
+    for (const [m, a] of batches) for (let i = before.get(m) || 0; i < a.length; i++) a[i].translate(0, dy, 0);
+    for (let i = s0; i < solids.length; i++) solids[i].position.y += dy;
+    for (let i = r0; i < ramps.length; i++) ramps[i].position.y += dy;
+  }
+  // G: bloque de piedra beige con grandes arcos y cúpula baja + ala este baja con terraza y sombrillas
+  function tBuildingG() {
+    const M = TM, x0 = tx(-0.45), x1 = tx(1.75), z0 = tz(-1.35), z1 = tz(-4.45), fh = 4.4;
+    const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.sand, band: M.trim, doors: 'NS', arch: true, ac: 0 });
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, R = Math.min(x1 - x0, z1 - z0) / 2 - 0.6;
+    tbox(cx - R, ry, cz - R, cx + R, ry + 0.9, cz + R, M.sand); // tambor
+    const dome = new T.Mesh(new T.SphereGeometry(R, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), M.domeMat); dome.scale.y = 0.42; dome.position.set(cx, ry + 0.9, cz); dome.castShadow = true; mapGroup.add(dome);
+    const lan = new T.Mesh(new T.CylinderGeometry(0.6, 0.8, 1.2, 8), M.sand); lan.position.set(cx, ry + 0.9 + R * 0.42 + 0.5, cz); mapGroup.add(lan);
+    // ala este (1 planta) con terraza en la azotea
+    const ex0 = x1, ex1 = tx(3.0);
+    const ey = tblock({ x0: ex0, x1: ex1, z0, z1, floors: 1, fh, mat: M.sand, band: M.trim, doors: 'E', arch: true, parapetH: 1.0, parapet: M.dark, ac: 0, stairs: false });
+    tramp(ex1 + 1.6, z1 - 1, ex1 + 1.6, z1 - 9, 0, ey, 2.4, M.trim); // escalera exterior a la terraza
+    for (let i = 0; i < 3; i++) {
+      const ux = (ex0 + ex1) / 2, uz = z0 + 3 + i * ((z1 - z0 - 6) / 2);
+      tbox(ux - 0.08, ey, uz - 0.08, ux + 0.08, ey + 2.4, uz + 0.08, M.dark, false);
+      const um = new T.Mesh(new T.ConeGeometry(1.7, 0.7, 10), i % 2 ? M.white : M.red); um.position.set(ux, ey + 2.6, uz); mapGroup.add(um);
+      tbox(ux - 0.7, ey, uz - 0.7, ux + 0.7, ey + 0.9, uz + 0.7, M.white);
+    }
+    // cartel redondo
+    const sign = new T.Mesh(new T.CylinderGeometry(1.3, 1.3, 0.2, 20), M.yellow); sign.rotation.x = Math.PI / 2; sign.position.set(cx + 2, fh + 1.6, z1 + 0.35); mapGroup.add(sign);
+  }
+  // C: 2 plantas altas de ladrillo con fachada central azul, miradores blancos y esquinas redondeadas
+  function tBuildingC() {
+    const M = TM, x0 = tx(8.78), x1 = tx(11.06), z0 = tz(4.88), z1 = tz(2.85), fh = 4.5;
+    const ry = tblock({ x0, x1, z0, z1, floors: 2, fh, mat: M.brick, band: M.white, doors: 'W', parapet: M.white, parapetH: 1.0, frame: M.white, ac: 1 });
+    const cz = (z0 + z1) / 2, w = (z1 - z0) * 0.42;
+    tbox(x0 - 0.35, 0.4, cz - w / 2, x0 + 0.05, ry, cz + w / 2, M.blue, false);          // paño azul central (fachada oeste)
+    for (const sz of [-1, 1]) { const bz = cz + sz * (w / 2 + 1.6);                          // miradores blancos
+      for (let f = 0; f < 2; f++) tbox(x0 - 1.1, f * fh + 0.9, bz - 1.3, x0, f * fh + 3.5, bz + 1.3, M.white, false); }
+    for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) { const c = new T.Mesh(new T.CylinderGeometry(0.8, 0.8, 1.1, 12), M.white); c.position.set(px, ry + 0.55, pz); mapGroup.add(c); }
+    for (const sz of [-1, 1]) tbox(x0 - 3, 0, cz + sz * 5 - 2, x0 - 1.5, 0.9, cz + sz * 5 + 2, M.hedge); // setos
   }
   // ---- Terreno del valle (malla con alturas): colinas/acantilados medidos del modelo ----
   const HILLS = [ // [x0,x1,y0,y1, altura] en unidades de modelo
@@ -762,11 +832,23 @@
   function tRoad(mx0, mx1, my0, my1, centerLine) {
     const x0 = tx(mx0), x1 = tx(mx1), z0 = tz(my1), z1 = tz(my0);
     tbox(x0, 0.0, z0, x1, 0.05, z1, TM.asphalt, false, 4);
+    const ax = (x1 - x0) > (z1 - z0);
+    if (ax) { tbox(x0, 0, z0 - 0.35, x1, 0.22, z0, TM.trim, false); tbox(x0, 0, z1, x1, 0.22, z1 + 0.35, TM.trim, false); }
+    else { tbox(x0 - 0.35, 0, z0, x0, 0.22, z1, TM.trim, false); tbox(x1, 0, z0, x1 + 0.35, 0.22, z1, TM.trim, false); }
+    if (centerLine) { // farolas en un lado
+      const step = 18;
+      if (ax) for (let x = x0 + 6; x < x1 - 4; x += step) tLamp(x, z0 - 1.0); else for (let z = z0 + 6; z < z1 - 4; z += step) tLamp(x0 - 1.0, z);
+    }
     if (centerLine) {
       const alongX = (x1 - x0) > (z1 - z0);
       if (alongX) { const zc = (z0 + z1) / 2; for (let x = x0 + 2; x < x1 - 2; x += 6) tbox(x, 0.05, zc - 0.15, x + 3, 0.08, zc + 0.15, TM.yellow, false); }
       else { const xc = (x0 + x1) / 2; for (let z = z0 + 2; z < z1 - 2; z += 6) tbox(xc - 0.15, 0.05, z, xc + 0.15, 0.08, z + 3, TM.yellow, false); }
     }
+  }
+  function tLamp(x, z) {
+    tbox(x - 0.12, 0, z - 0.12, x + 0.12, 6.2, z + 0.12, TM.dark);
+    tbox(x - 0.12, 6.0, z - 0.12, x + 1.6, 6.25, z + 0.12, TM.dark, false);
+    tbox(x + 1.1, 5.75, z - 0.25, x + 1.8, 6.0, z + 0.25, TM.white, false);
   }
   function tCrosswalk(x, z, alongX, len) { for (let i = -len / 2; i < len / 2; i += 1.6) { if (alongX) tbox(x + i, 0.05, z - 2.5, x + i + 0.8, 0.08, z + 2.5, TM.white, false); else tbox(x - 2.5, 0.05, z + i, x + 2.5, 0.08, z + i + 0.8, TM.white, false); } }
 
@@ -786,35 +868,25 @@
     mblock(1.6, 3.1, 3.1, 6.1, 3, 'stone', 'WS');           // A1
     mblock(-0.57, 1.67, 2.34, 3.93, 3, 'stone', 'SN');      // A2
     mblock(5.63, 8.0, 5.73, 8.1, 3, 'stone', 'WS');         // B
-    mblock(8.78, 11.06, 2.85, 4.88, 3, 'blue', 'S');        // C (azul)
+    tBuildingC();                                           // C (azul)
     mblock(-4.88, -3.38, -4.1, -1.12, 5, 'stone', 'NW');    // F ala oeste
     mblock(-2.6, -1.25, -4.1, -1.12, 5, 'stone', 'NE');     // F ala este
     mblock(-3.38, -2.6, -4.1, -3.25, 5, 'stone', '');       // F barra sur
-    mblock(-0.2, 2.4, -4.1, -1.73, 3, 'stone', 'NS');       // G
+    tBuildingG();                                           // G (cúpula)
     mblock(-12.16, -10.6, -8.44, -5.56, 3, 'tan', 'E');     // K izq
     mblock(-9.86, -8.27, -7.25, -5.04, 3, 'tan', 'EW');     // K der
     mblock(-4.2, -1.93, -6.58, -4.81, 2, 'brick', 'WN');    // L
     mblock(-0.64, 1.2, -6.85, -6.31, 2, 'stone', 'N', { stairs: false }); // pequeño
-    mblock(-1.32, 2.41, -8.54, -6.85, 6, 'brickT', 'SN');   // M torre de ladrillo
+    mblock(-1.32, 2.41, -8.54, -6.85, 6, 'brickT', 'SN', { baseMat: TM.stoneL });   // M torre de ladrillo
     mblock(-3.69, -2.6, -12.0, -8.44, 1, 'tan', 'EN');      // O
     mblock(5.8, 8.1, -7.19, -4.81, 3, 'stone', 'WN');       // Q
-    mblock(-10.6, -8.6, -13.4, -11.35, 5, 'brickT', 'EN');  // R ladrillo
+    mblock(-10.6, -8.6, -13.4, -11.35, 4, 'brickT', 'EN', { baseMat: TM.cream, fh: 3.9 });  // R ladrillo
+    tTree(tx(-10.3), tz(-6.2), 1.2); tTree(tx(-9.3), tz(-7.0), 0.9); // patio de K
     mblock(-0.8, 3.26, -15.05, -10.8, 1, 'light', 'NW');    // S nave
     // lucernarios de la nave
     for (let i = 0; i < 3; i++) tbox(tx(-0.2) + i * 6.5, FH, tz(-12) - 1.5, tx(-0.2) + i * 6.5 + 4, FH + 0.8, tz(-12) + 1.5, TM.glass, false);
     // torre del reloj
     tClockTower(tx(7.03), tz(3.49));
-    // G: tejado a cuatro aguas + terraza con sombrillas
-    {
-      const x0 = tx(-0.2), x1 = tx(2.4), z0 = tz(-1.73), z1 = tz(-4.1), W = x1 - x0, D = z1 - z0, cone = new T.ConeGeometry(1, 1, 4); cone.rotateY(Math.PI / 4);
-      const hip = new T.Mesh(cone, TM.slate); hip.scale.set(W / 1.414 + 0.5, 3.3, D / 1.414 + 0.5); hip.position.set((x0 + x1) / 2, 3 * FH + 0.8 + 1.65, (z0 + z1) / 2); mapGroup.add(hip);
-      for (let i = 0; i < 3; i++) {
-        const ux = tx(2.72), uz = tz(-2.2) + i * 5;
-        tbox(ux - 0.08, 0, uz - 0.08, ux + 0.08, 2.4, uz + 0.08, TM.dark, false);
-        const um = new T.Mesh(new T.ConeGeometry(1.6, 0.7, 10), i % 2 ? TM.white : TM.red); um.position.set(ux, 2.6, uz); mapGroup.add(um);
-        tbox(ux - 0.7, 0, uz - 0.7, ux + 0.7, 0.9, uz + 0.7, TM.white, true);
-      }
-    }
     // A3: jardinera con fuente en la plaza norte
     {
       const x0 = tx(-0.16), x1 = tx(0.92), z0 = tz(5.53), z1 = tz(4.54);
