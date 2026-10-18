@@ -881,7 +881,9 @@
     // zócalo ancho de piedra (base)
     tbox(cx - b / 2, 0, cz - b / 2, cx + b / 2, 1.0, cz - s / 2, M.stoneL); tbox(cx - b / 2, 0, cz + s / 2, cx - 1.6, 1.0, cz + b / 2, M.stoneL); tbox(cx + 1.6, 0, cz + s / 2, cx + b / 2, 1.0, cz + b / 2, M.stoneL);
     tbox(cx - b / 2, 0, cz - s / 2, cx - s / 2, 1.0, cz + s / 2, M.stoneL); tbox(cx + s / 2, 0, cz - s / 2, cx + b / 2, 1.0, cz + s / 2, M.stoneL);
-    tbox(cx - s / 2 - 0.35, fh - 0.3, cz - s / 2 - 0.35, cx + s / 2 + 0.35, fh + 0.2, cz + s / 2 + 0.35, M.trim, false);
+    { const X0 = cx - s / 2 - 0.35, X1 = cx + s / 2 + 0.35, Z0 = cz - s / 2 - 0.35, Z1 = cz + s / 2 + 0.35, e = 0.5; // cornisa del primer piso: solo el anillo exterior
+      tbox(X0, fh - 0.3, Z0, X1, fh + 0.2, Z0 + e, M.trim, false); tbox(X0, fh - 0.3, Z1 - e, X1, fh + 0.2, Z1, M.trim, false);
+      tbox(X0, fh - 0.3, Z0 + e, X0 + e, fh + 0.2, Z1 - e, M.trim, false); tbox(X1 - e, fh - 0.3, Z0 + e, X1, fh + 0.2, Z1 - e, M.trim, false); }
     const top = fl * fh;
     { // cornisa con hueco sobre la escalera para subir al campanario
       const X0 = cx - s / 2 - 0.5, X1 = cx + s / 2 + 0.5, Z0 = cz - s / 2 - 0.5, Z1 = cz + s / 2 + 0.5, hx0 = cx - s / 2 + 0.4, hx1 = hx0 + 3.0, hz0 = cz - s / 2 + 1.6, hz1 = cz + s / 2 - 0.4;
