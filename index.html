@@ -2328,9 +2328,20 @@
     c.on('close', () => {
       const id = c._afid;
       if (net.host) { delete net.conns[id]; removeRemotePlayer(id); net.broadcast({ t: 'leave', id: id }); }
-      else { mpStatus('⚠️ Host disconnected. Join again.'); net.active = false; }
+      else if (net.conns['host'] === c) { mpStatus('⚠️ Connection lost. Reconnecting…'); scheduleReconnect(); }
     });
     c.on('error', () => {});
+  }
+  // invitado: si se cae la conexión con el anfitrión, reintenta solo (mismo id, sin duplicados)
+  function scheduleReconnect() {
+    if (net.reconnT || net.host || !net.code) return; let tries = 0;
+    net.reconnT = setInterval(() => {
+      tries++;
+      if (net.conns['host'] && net.conns['host'].open) { clearInterval(net.reconnT); net.reconnT = null; mpStatus(''); return; }
+      if (tries > 15) { clearInterval(net.reconnT); net.reconnT = null; mpStatus('⚠️ Host disconnected. Join again.'); net.active = false; return; }
+      try { if (net.peer.disconnected) net.peer.reconnect();
+        const c = net.peer.connect('af-' + net.code, { reliable: true }); c._afid = 'host'; net.conns['host'] = c; attachConnHandlers(c); } catch (e) {}
+    }, 2000);
   }
   function mpStatus(t) { document.getElementById('mpStatus').innerHTML = t; }
   function randomCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 5; i++) s += a[(Math.random() * a.length) | 0]; return 'af-' + s; }
@@ -2375,12 +2386,13 @@
       if (c.open) welcome(); else c.on('open', welcome);
     });
     net.peer.on('error', e => mpStatus('Network error: ' + e.type));
+    net.peer.on('disconnected', () => { try { net.peer.reconnect(); } catch (e) {} }); // seguir aceptando jugadores nuevos
   }
   // Invitado: entra al juego YA (gesto del clic -> captura ratón) y conecta en segundo plano.
   async function startJoin(codeRaw) {
     if (typeof Peer === 'undefined') { mpStatus('Could not load networking (offline).'); return; }
     if (!codeRaw.trim()) { mpStatus('Type the room code.'); return; }
-    net.host = false; net.active = true; player.inGame = true;
+    net.host = false; net.active = true; player.inGame = true; net.code = codeRaw.trim().toUpperCase();
     startPlay(selectedMap);
     const ice = await getIceServers();
     net.peer = new Peer({ config: { iceServers: ice } });
@@ -2390,6 +2402,7 @@
       c._afid = 'host'; net.conns['host'] = c; attachConnHandlers(c);
     });
     net.peer.on('error', e => { /* el juego sigue; reintento al reconectar */ });
+    net.peer.on('disconnected', () => { try { net.peer.reconnect(); } catch (e) {} });
   }
 
   // ---------- Iniciar partida ----------
@@ -2587,6 +2600,7 @@
       { const hy = player.pos.y + PLAYER_H - 0.1; for (const sd of solids) { const b = boxDims(sd), q = sd.position; if (b.hh > 0.4) continue;
         if (Math.abs(player.pos.x - q.x) < b.hw && Math.abs(player.pos.z - q.z) < b.hd && Math.abs(hy - q.y) < b.hh) { issue('head_in_ceiling', player.pos); break; } } }
       // ¿ha cruzado una ventana entre este frame y el anterior?
+      if (prevP && prevP.distanceTo(player.pos) > 5) prevP = null; // teletransporte (reaparición / reinicio): no cuenta
       if (prevP) for (const wc of winCols) { const u = wc.userData, q = wc.position;
         if (Math.abs(q.x - player.pos.x) > 3 + u.hw || Math.abs(q.z - player.pos.z) > 3 + u.hd) continue;
         const y = player.pos.y + 1.2; if (Math.abs(y - q.y) > u.hh) continue;
