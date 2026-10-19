@@ -682,8 +682,9 @@
       const hub = new T.Mesh(new T.CylinderGeometry(0.36, 0.36, 0.44, 8), new T.MeshLambertMaterial({ color: 0x3b3f46 })); hub.rotation.z = Math.PI / 2; hub.position.copy(w.position); g.add(hub);
     }
     g.position.set(x, 0, z); g.rotation.y = ang; mapGroup.add(g);
-    const c = Math.abs(Math.cos(ang)), sn = Math.abs(Math.sin(ang));                                        // colisión alineada con el giro
-    solids.push(collider(x, 1.0, z, 2.4 * c + 5.9 * sn, 2.0, 2.4 * sn + 5.9 * c));
+    // colisión: 3 cajas a lo largo de la camioneta (morro, cabina, caja) para que siga su forma aunque esté girada
+    for (const [lz, hgt] of [[1.95, 1.3], [0, 2.0], [-1.95, 1.55]]) { const px = x + Math.sin(ang) * lz, pz = z + Math.cos(ang) * lz, w = 2.3 * 0.82 + Math.abs(Math.sin(2 * ang)) * 0.0;
+      solids.push(collider(px, hgt / 2, pz, w + 0.2, hgt, w + 0.2)); }
   }
 
 
@@ -780,6 +781,17 @@
       sg.translate(px, py + 0.02, pz); batchAdd(TM.trim, sg);
     }
     ramps.push(collider(cx, cy, cz, w, 0.26, d, e));
+    // barandillas a los dos lados (visibles y sólidas): te mantienen en el centro de la escalera
+    { const nr = Math.max(3, Math.ceil(run / 1.2)), along = Math.abs(dz) >= Math.abs(dx);
+      for (let i = 0; i < nr; i++) { const f0 = i / nr, f1 = (i + 1) / nr, yA = y0 + rise * f0, yB = y0 + rise * f1;
+        for (const sd of [-1, 1]) { const off = sd * (width / 2 - 0.05);
+          const ax = x0 + dx * f0, az = z0 + dz * f0, bx = x0 + dx * f1, bz = z0 + dz * f1;
+          const X0 = along ? ax + off - 0.05 : Math.min(ax, bx), X1 = along ? ax + off + 0.05 : Math.max(ax, bx);
+          const Z0 = along ? Math.min(az, bz) : az + off - 0.05, Z1 = along ? Math.max(az, bz) : az + off + 0.05;
+          tbox(X0, yA + 0.1, Z0, X1, yB + 0.95, Z1, TM.wood, false, 1);                                            // costado de madera (igual que su colisión)
+          tbox(along ? X0 - 0.03 : X0, yB + 0.95, along ? Z0 : Z0 - 0.03, along ? X1 + 0.03 : X1, yB + 1.02, along ? Z1 : Z1 + 0.03, TM.trim, false, 1); // pasamanos
+          solids.push(collider((X0 + X1) / 2, (yA + yB) / 2 + 0.55, (Z0 + Z1) / 2, X1 - X0, yB - yA + 0.9, Z1 - Z0)); } }
+    }
     const nb = Math.max(3, Math.ceil(run / 0.8));
     for (let i = 0; i < nb; i++) {
       const f0 = i / nb, f1 = (i + 1) / nb, top = y0 + rise * f0 - 0.3 - (rise / run) * (PLAYER_R + 0.25);
@@ -788,7 +800,7 @@
       const sx0 = Math.min(ax, bx) - (Math.abs(dz) >= Math.abs(dx) ? hwid : 0), sx1 = Math.max(ax, bx) + (Math.abs(dz) >= Math.abs(dx) ? hwid : 0);
       const sz0 = Math.min(az, bz) - (Math.abs(dz) >= Math.abs(dx) ? 0 : hwid), sz1 = Math.max(az, bz) + (Math.abs(dz) >= Math.abs(dx) ? 0 : hwid);
       const bot = Math.max(y0, top - 0.3); // capa fina bajo la rampa: debajo queda hueco libre donde quepa el jugador
-      solids.push(collider((sx0 + sx1) / 2, (bot + top) / 2, (sz0 + sz1) / 2, sx1 - sx0, top - bot, sz1 - sz0));
+      const sh = collider((sx0 + sx1) / 2, (bot + top) / 2, (sz0 + sz1) / 2, sx1 - sx0, top - bot, sz1 - sz0); sh.userData.noShot = true; solids.push(sh); // las balas las para la rampa, no esta capa
     }
   }
   // Bloque de edificio entrable de varias plantas: paredes con ventanas reales, forjados con hueco,
@@ -1266,7 +1278,7 @@
     // límites invisibles
     { const bx0 = tx(-13.6), bx1 = tx(13.6), bz0 = tz(9.9), bz1 = tz(-20.1); cityBounds = [bx0, bx1, bz0, bz1];
       for (const [x0, z0, x1, z1] of [[bx0 - 4, bz0 - 4, bx1 + 4, bz0], [bx0 - 4, bz1, bx1 + 4, bz1 + 4], [bx0 - 4, bz0, bx0, bz1], [bx1, bz0, bx1 + 4, bz1]])
-        solids.push(collider((x0 + x1) / 2, 100, (z0 + z1) / 2, x1 - x0, 200, z1 - z0)); }
+        { const bw = collider((x0 + x1) / 2, 100, (z0 + z1) / 2, x1 - x0, 200, z1 - z0); bw.userData.noShot = true; solids.push(bw); } } // límite: para al jugador, no a las balas
     spawnPoint.set(tx(1.5), 0, tz(0.9));
     return floors;
   }
@@ -1404,7 +1416,7 @@
     batchesDone();
     { const B = 66; cityBounds = [-B, B, -B, B];
       for (const [x0, z0, x1, z1] of [[-B - 4, -B - 4, B + 4, -B], [-B - 4, B, B + 4, B + 4], [-B - 4, -B, -B, B], [B, -B, B + 4, B]])
-        solids.push(collider((x0 + x1) / 2, 100, (z0 + z1) / 2, x1 - x0, 200, z1 - z0)); }
+        { const bw = collider((x0 + x1) / 2, 100, (z0 + z1) / 2, x1 - x0, 200, z1 - z0); bw.userData.noShot = true; solids.push(bw); } } // límite: para al jugador, no a las balas
     spawnPoint.set(0, 0, 20);
     return floors;
   }
@@ -1471,7 +1483,7 @@
     ambient.intensity = city ? 0.22 : 0.2;
     const floors = kind === 'city' ? buildTilted() : buildPueblo();
     walkables = [...floors, ...solids, ...ramps];
-    worldSolids = walkables.slice();
+    worldSolids = walkables.filter(o => !o.userData.noShot); // las balas no chocan con los límites invisibles del mapa
   }
   buildMap('desert');
 
@@ -1742,6 +1754,21 @@
     document.getElementById('magn').textContent = ammo[curWeapon].mag;
     document.getElementById('reloadTxt').textContent = reloading ? 'RELOADING…' : '';
   }
+  // punta del cañón en el mundo: la del arma en pantalla (1ª persona) o la del arma en la mano (3ª persona)
+  function muzzleWorld(dir) {
+    if (!thirdPerson && flashMesh) { camera.updateMatrixWorld(true); return flashMesh.getWorldPosition(new T.Vector3()); }
+    return gunTip(avatar, dir) || camera.getWorldPosition(new T.Vector3()).add(dir.clone().multiplyScalar(1.0));
+  }
+  function gunTip(g, dir) {
+    const gh = g && g.userData.gunHolder; if (!gh) return null;
+    g.updateMatrixWorld(true); const len = { sniper: 1.1, shotgun: 0.85, minigun: 1.0 }[g.userData.gunType] || 0.85;
+    const fwd = dir ? dir.clone().normalize() : new T.Vector3(0, 0, 1).applyQuaternion(g.quaternion);
+    return gh.getWorldPosition(new T.Vector3()).addScaledVector(fwd, len);
+  }
+  function muzzleFlashAt(p) { // fogonazo breve en la punta del arma de otro jugador
+    const f = new T.Mesh(new T.SphereGeometry(0.16, 8, 6), new T.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.9 }));
+    f.position.copy(p); scene.add(f); setTimeout(() => { scene.remove(f); f.geometry.dispose(); }, 60);
+  }
   function reload() {
     const st = ammo[curWeapon], w = WEAPONS[curWeapon];
     if (reloading || st.mag >= w.mag) return;
@@ -1751,12 +1778,15 @@
     if (reloading || player.dead || matchEnded) return; // en la pantalla de resultados no se dispara
     const w = WEAPONS[curWeapon], st = ammo[curWeapon];
     if (st.mag <= 0) { reload(); return; }
-    st.mag--; updateAmmo(); sfx(curWeapon); player.protect = 0; // disparar quita la protección de aparición if (st.mag <= 0) setTimeout(reload, 180); // recarga automática
+    st.mag--; updateAmmo(); sfx(curWeapon);
+    player.protect = 0; // disparar quita la protección de aparición
+    if (st.mag <= 0) setTimeout(reload, 180); // recarga automática
     weaponGroup.position.z = gunBaseZ + 0.06; weaponGroup.rotation.x = -0.09; // retroceso
     flashMesh.visible = true; flashMesh.rotation.z = Math.random() * 6.28; flashMesh.scale.setScalar(0.8 + Math.random() * 0.6);
     flashMesh.userData.t = 0.04;
     const origin = camera.getWorldPosition(new T.Vector3());
     const baseDir = camera.getWorldDirection(new T.Vector3());
+    let firstEnd = null;
     for (let p = 0; p < w.pellets; p++) {
       const dir = baseDir.clone();
       if (w.spread) { dir.x += (Math.random() - 0.5) * w.spread; dir.y += (Math.random() - 0.5) * w.spread; dir.z += (Math.random() - 0.5) * w.spread; dir.normalize(); }
@@ -1766,6 +1796,7 @@
       else for (const e of enemies) { if (e.userData.dying !== undefined) continue; for (const m of e.userData.meshes) targets.push(m); }
       const hits = raycaster.intersectObjects(targets, false);
       let end = origin.clone().add(dir.clone().multiplyScalar(300));
+      if (hits.length && window.__onShotHit) window.__onShotHit(hits[0], origin, dir);
       if (hits.length) {
         const h = hits[0]; end = h.point.clone();
         if (net.active) {
@@ -1779,11 +1810,11 @@
           if (e) { damageEnemy(e, w.dmg, e.userData.headSet.has(h.object)); showHitmarker(); }
         }
       }
-      tracer(origin.clone().add(baseDir.clone().multiplyScalar(1.0)).add(new T.Vector3(0, -0.12, 0)), end);
+      tracer(muzzleWorld(baseDir), end); if (!firstEnd) firstEnd = end; // la bala sale de la boca del arma
     }
     recoilPitch += w.kick; // retroceso de cámara
     if (net.active) {
-      const shot = { t: 'shot', from: net.id, w: curWeapon, ox: origin.x, oy: origin.y, oz: origin.z, ex: baseDir.x, ey: baseDir.y, ez: baseDir.z };
+      const shot = { t: 'shot', from: net.id, w: curWeapon, ox: origin.x, oy: origin.y, oz: origin.z, ex: baseDir.x, ey: baseDir.y, ez: baseDir.z, hx: firstEnd.x, hy: firstEnd.y, hz: firstEnd.z }; // dónde acabó la bala (para el trazo de los demás)
       if (net.host) net.broadcast(shot); else net.toHost(shot);
     }
     if (st.mag <= 0) reload();
@@ -2268,9 +2299,12 @@
       if (d.target === net.id) { player.lastAttacker = d.from; damagePlayer(d.d); }
       else if (net.host) { net.sendTo(d.target, d); }
     } else if (d.t === 'shot') {
-      tracer(new T.Vector3(d.ox, d.oy, d.oz), new T.Vector3(d.ox + d.ex * 200, d.oy + d.ey * 200, d.oz + d.ez * 200));
-      remoteShotAudio(d.w, new T.Vector3(d.ox, d.oy, d.oz), new T.Vector3(d.ex, d.ey, d.ez));
-      const rs = remotes[net.host ? sender : d.from]; if (rs) rs.lastShot = performance.now();
+      const rs = remotes[net.host ? sender : d.from], sdir = new T.Vector3(d.ex, d.ey, d.ez);
+      const tip = (rs && rs.group.visible && gunTip(rs.group, sdir)) || new T.Vector3(d.ox, d.oy, d.oz);
+      const tend = d.hx !== undefined ? new T.Vector3(d.hx, d.hy, d.hz) : new T.Vector3(d.ox + d.ex * 200, d.oy + d.ey * 200, d.oz + d.ez * 200);
+      tracer(tip, tend); muzzleFlashAt(tip);
+      remoteShotAudio(d.w, new T.Vector3(d.ox, d.oy, d.oz), sdir);
+      if (rs) rs.lastShot = performance.now();
       if (net.host) { d.from = sender; net.broadcast(d, sender); }
     } else if (d.t === 'died') {
       const fromId = net.host ? sender : d.from;
@@ -2435,6 +2469,23 @@
       fps: { min: 999, samples: [] }, net: { remotesSeen: 0, maxRemotes: 0 }, maxY: 0, distance: 0, stuck: 0, log: [] };
     window.__botReport = () => JSON.parse(JSON.stringify(R));
     match.limitSec = +(Q.get('secs') || 60); R.rounds = [];
+    // --- auditoría de colisiones: paredes invisibles y balas paradas en el aire ---
+    let visMeshes = null, visT = 0; const aray = new T.Raycaster();
+    const vis = () => { if (!visMeshes || performance.now() - visT > 5000) { visT = performance.now(); visMeshes = []; mapGroup.traverse(o => { if (o.isMesh && o.visible && !(o.material && o.material.visible === false)) visMeshes.push(o); }); } return visMeshes; };
+    const visibleHitDist = (o, d, far) => { aray.set(o, d); aray.far = far; const h = aray.intersectObjects(vis(), false); return h.length ? h[0].distance : Infinity; };
+    window.__onShotHit = (h, o, d) => { if (!(h.object.material && h.object.material.visible === false)) return;
+      if (visibleHitDist(o, d, h.distance + 0.8) > h.distance + 0.6) issue('invisible_bullet_block', h.point, 'collider ' + [h.object.scale.x, h.object.scale.y, h.object.scale.z].map(v => v.toFixed(1)).join('x')); };
+    let lastFP = null;
+    function auditWalk(dt) {
+      const p = player.pos.clone(); const moved = lastFP ? Math.hypot(p.x - lastFP.x, p.z - lastFP.z) : 1; lastFP = p;
+      if (!keys['KeyW'] || player.dead || dt <= 0 || moved > WALK * dt * 0.25) return;
+      const fwd = new T.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+      for (const wc of winCols) if (Math.abs(wc.position.x - p.x) < 2.5 + wc.userData.hw && Math.abs(wc.position.z - p.z) < 2.5 + wc.userData.hd) return; // ventana delante: bloqueo intencionado
+      const B = bounds(); if (p.x < B[0] + 2 || p.x > B[1] - 2 || p.z < B[2] + 2 || p.z > B[3] - 2) return;                       // borde del mapa
+      for (const hh of [0.5, 1.3, 2.2]) if (visibleHitDist(new T.Vector3(p.x, p.y + hh, p.z), fwd, 1.6) < 1.6) return;
+      for (const sd of [-1, 1]) { const sdir = fwd.clone().applyAxisAngle(new T.Vector3(0, 1, 0), sd * 0.6); for (const hh of [0.5, 1.3]) if (visibleHitDist(new T.Vector3(p.x, p.y + hh, p.z), sdir, 1.6) < 1.6) return; }
+      issue('invisible_wall', p);
+    }
     window.__botDbg = { zones: () => ({ roads: roadZones.slice(), blds: flatZones.slice() }), setView: (y, p) => { yaw = y; pitch = p; }, avatar: () => avatar, setChar: c => { selectedChar = c; setAvatar(c); setWeapon(curWeapon); }, terrainH, bounds: () => cityBounds, solids, ramps, winCols, player, boxDims, setYaw: v => { yaw = v; pitch = 0; } };
     const log = (m) => { R.log.push(((Date.now() - R.started) / 1000).toFixed(1) + 's ' + m); if (R.log.length > 200) R.log.shift(); };
     const issue = (kind, pos, extra) => {
@@ -2514,6 +2565,7 @@
       return best;
     }
     window.__botTick = function (dt) {
+      auditWalk(dt);
       if (matchEnded && !prevEnded) { R.rounds.push({ n: R.rounds.length + 1, board: JSON.parse(JSON.stringify(boardList)), score, combat: Object.assign({}, R.combat), stairs: { ok: R.stairs.ok, tested: R.stairs.tested }, issues: Object.keys(R.issues).length, errors: R.errors.length }); log('MATCH END ' + R.rounds.length); }
       prevEnded = matchEnded;
       // fps
